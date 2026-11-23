@@ -42,7 +42,7 @@ function el(tag, options = {}, children = []) {
     else if (key === 'value') node.value = value;
     else if (key === 'checked') node.checked = value;
     else if (key === 'selected') node.selected = value;
-    else if (key === 'ariaLabel' && value) node.setAttribute('aria-label', value);
+    else if (key === 'ariaLabel') { if (value) node.setAttribute('aria-label', value); }
     else if (key === 'ariaCurrent') node.setAttribute('aria-current', value);
     else if (key === 'htmlFor') node.setAttribute('for', value);
     else if (key === 'disabled') node.disabled = value;
@@ -120,6 +120,13 @@ function setExperience(experience) {
   render();
 }
 
+function restoreFocus(selector, value = '') {
+  const node = document.querySelector(selector);
+  if (!node) return;
+  node.focus({ preventScroll: true });
+  if (typeof node.setSelectionRange === 'function' && value) node.setSelectionRange(value.length, value.length);
+}
+
 function setView(view, replace = false) {
   state.view = view;
   state.agentId = null;
@@ -131,7 +138,18 @@ function setView(view, replace = false) {
 
 function setSidebarOpen(open) {
   sidebar.classList.toggle('is-open', open);
-  document.querySelector('#mobile-menu')?.setAttribute('aria-expanded', String(open));
+  const mobile = window.matchMedia('(max-width: 780px)').matches;
+  const mobileMenu = document.querySelector('#mobile-menu');
+  mobileMenu?.setAttribute('aria-expanded', String(open));
+  mobileMenu?.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+  if (mobile) {
+    sidebar.inert = !open;
+    sidebar.setAttribute('aria-hidden', String(!open));
+    if (open) requestAnimationFrame(() => sidebar.querySelector('.nav-item')?.focus({ preventScroll: true }));
+  } else {
+    sidebar.inert = false;
+    sidebar.setAttribute('aria-hidden', 'false');
+  }
 }
 
 function updateNav() {
@@ -151,6 +169,7 @@ function openRole(roleId) {
   state.view = 'agent-detail';
   location.hash = 'agent-detail';
   render();
+  restoreFocus('.detail-header h1');
 }
 
 function setSearch(value) {
@@ -177,10 +196,10 @@ function filteredRoles() {
 
 function agentToolbar() {
   return el('div', { className: 'toolbar' }, [
-    el('input', { className: 'search-field', type: 'search', placeholder: 'Search names, aliases, families, missions, capabilities…', value: state.search, on: { input: (event) => { state.search = event.target.value; render(); } } }),
-    el('select', { className: 'select-field', value: state.family, on: { change: (event) => { state.family = event.target.value; render(); } } }, [el('option', { value: '', text: 'All families' }), ...Object.keys(state.data.family_counts).sort().map((family) => el('option', { value: family, text: family }))]),
-    el('select', { className: 'select-field', value: state.runtime, on: { change: (event) => { state.runtime = event.target.value; render(); } } }, [el('option', { value: '', text: 'All runtime states' }), el('option', { value: 'runtime', text: 'Typed runtime' }), el('option', { value: 'registry', text: 'Registry only' })]),
-    el('select', { className: 'select-field', value: state.sort, on: { change: (event) => { state.sort = event.target.value; render(); } } }, [el('option', { value: 'title', text: 'Sort: role' }), el('option', { value: 'family', text: 'Sort: family' }), el('option', { value: 'alias', text: 'Sort: codename' })])
+    el('input', { className: 'search-field', type: 'search', ariaLabel: 'Search agents', placeholder: 'Search names, aliases, families, missions, capabilities…', value: state.search, on: { input: (event) => { const value = event.target.value; state.search = value; render(); restoreFocus('.toolbar .search-field', value); } } }),
+    el('select', { className: 'select-field', ariaLabel: 'Family filter', value: state.family, on: { change: (event) => { state.family = event.target.value; render(); restoreFocus('.toolbar .select-field:nth-of-type(1)'); } } }, [el('option', { value: '', text: 'All families' }), ...Object.keys(state.data.family_counts).sort().map((family) => el('option', { value: family, text: family }))]),
+    el('select', { className: 'select-field', ariaLabel: 'Runtime state filter', value: state.runtime, on: { change: (event) => { state.runtime = event.target.value; render(); restoreFocus('.toolbar .select-field:nth-of-type(2)'); } } }, [el('option', { value: '', text: 'All runtime states' }), el('option', { value: 'runtime', text: 'Typed runtime' }), el('option', { value: 'registry', text: 'Registry only' })]),
+    el('select', { className: 'select-field', ariaLabel: 'Sort order', value: state.sort, on: { change: (event) => { state.sort = event.target.value; render(); restoreFocus('.toolbar .select-field:nth-of-type(3)'); } } }, [el('option', { value: 'title', text: 'Sort: role' }), el('option', { value: 'family', text: 'Sort: family' }), el('option', { value: 'alias', text: 'Sort: codename' })])
   ]);
 }
 
@@ -236,7 +255,7 @@ function renderOverviewLegacy() {
 }
 
 function agentCard(role) {
-  const article = el('article', { className: 'agent-card' }, [
+  const article = el('article', { className: 'agent-card', dataset: { roleId: role.name } }, [
     el('div', { className: 'agent-card-head' }, [el('div', {}, [el('div', { className: 'agent-symbol', text: '✦' }), el('h2', { className: 'agent-title', text: role.title }), el('span', { className: 'agent-alias', text: role.display_name })]), badge(roleRuntimeLabel(role), roleRuntimeTone(role))]),
     el('p', { className: 'agent-mission', text: role.mission }),
     tags(role.capabilities.slice(0, 3)),
@@ -299,9 +318,9 @@ function renderPrompts() {
   const selected = roleById(state.promptRoleId) || state.data.roles[0];
   state.promptRoleId = selected.name;
   const available = state.data.roles.filter((role) => [role.title, role.display_name, role.family].join(' ').toLowerCase().includes(state.promptFilter.toLowerCase()));
-  const roleList = el('div', { className: 'role-list' }, available.map((role) => el('button', { className: `role-list-button ${role.name === selected.name ? 'is-selected' : ''}`, type: 'button', on: { click: () => { state.promptRoleId = role.name; render(); } } }, [el('strong', { text: role.display_name }), el('span', { text: role.title })])));
+  const roleList = el('div', { className: 'role-list' }, available.map((role) => el('button', { className: `role-list-button ${role.name === selected.name ? 'is-selected' : ''}`, dataset: { roleId: role.name }, type: 'button', on: { click: () => { state.promptRoleId = role.name; render(); restoreFocus(`.role-list-button[data-role-id="${role.name}"]`); } } }, [el('strong', { text: role.display_name }), el('span', { text: role.title })])));
   const preview = promptForRole(selected);
-  return el('div', {}, [pageHeading('Prompt Studio', 'Make the contract explicit.', 'Preview, adapt, compare, and export role prompts. Previewing a prompt never executes an agent.'), el('div', { className: 'studio-layout' }, [el('aside', { className: 'panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Prompt library' }), el('p', { text: `${available.length} roles` })])]), el('input', { className: 'search-field', type: 'search', placeholder: 'Filter prompts…', value: state.promptFilter, on: { input: (event) => { state.promptFilter = event.target.value; render(); } } }), roleList]), el('section', { className: 'panel studio-main' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: selected.title }), el('p', { className: 'mono', text: `${selected.display_name} · ${selected.maintenance.version}` })]), badge('Preview only', 'amber')]), el('div', { className: 'studio-controls' }, [el('div', { className: 'field-group' }, [el('label', { text: 'Task template', htmlFor: 'prompt-template' }), el('select', { id: 'prompt-template', className: 'select-field', value: state.promptTemplate, on: { change: (event) => { state.promptTemplate = event.target.value; render(); } } }, ['Role brief', 'Audit a proposed change', 'Prepare a handoff', 'Create a test plan', 'Custom role brief'].map((item) => el('option', { value: item, text: item })))]), el('div', { className: 'field-group' }, [el('label', { text: 'Task context', htmlFor: 'prompt-context' }), el('textarea', { id: 'prompt-context', className: 'text-field', rows: 5, placeholder: 'Add bounded task context, file scope, acceptance criteria, and evidence requirements…', value: state.promptContext, on: { input: (event) => { state.promptContext = event.target.value; const previewNode = document.querySelector('#prompt-preview'); if (previewNode) previewNode.textContent = promptForRole(selected); } } })])]), el('div', { className: 'prompt-actions' }, [button('Copy configuration', 'small primary', () => copyText(preview)), button('Export .txt', 'small ghost', () => downloadText(`${selected.name}-prompt-preview.txt`, preview, 'text/plain'))]), el('div', { id: 'prompt-preview', className: 'prompt-box prompt-preview', text: preview })])])]);
+  return el('div', {}, [pageHeading('Prompt Studio', 'Make the contract explicit.', 'Preview, adapt, compare, and export role prompts. Previewing a prompt never executes an agent.'), el('div', { className: 'studio-layout' }, [el('aside', { className: 'panel', ariaLabel: 'Prompt library' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Prompt library' }), el('p', { text: `${available.length} roles` })])]), el('input', { className: 'search-field', type: 'search', ariaLabel: 'Filter prompts', placeholder: 'Filter prompts…', value: state.promptFilter, on: { input: (event) => { const value = event.target.value; state.promptFilter = value; render(); restoreFocus('.studio-layout aside .search-field', value); } } }), roleList]), el('section', { className: 'panel studio-main' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: selected.title }), el('p', { className: 'mono', text: `${selected.display_name} · ${selected.maintenance.version}` })]), badge('Preview only', 'amber')]), el('div', { className: 'studio-controls' }, [el('div', { className: 'field-group' }, [el('label', { text: 'Task template', htmlFor: 'prompt-template' }), el('select', { id: 'prompt-template', className: 'select-field', value: state.promptTemplate, on: { change: (event) => { state.promptTemplate = event.target.value; render(); } } }, ['Role brief', 'Audit a proposed change', 'Prepare a handoff', 'Create a test plan', 'Custom role brief'].map((item) => el('option', { value: item, text: item })))]), el('div', { className: 'field-group' }, [el('label', { text: 'Task context', htmlFor: 'prompt-context' }), el('textarea', { id: 'prompt-context', className: 'text-field', rows: 5, placeholder: 'Add bounded task context, file scope, acceptance criteria, and evidence requirements…', value: state.promptContext, on: { input: (event) => { state.promptContext = event.target.value; const previewNode = document.querySelector('#prompt-preview'); if (previewNode) previewNode.textContent = promptForRole(selected); } } })])]), el('div', { className: 'prompt-actions' }, [button('Copy configuration', 'small primary', () => copyText(preview)), button('Export .txt', 'small ghost', () => downloadText(`${selected.name}-prompt-preview.txt`, preview, 'text/plain'))]), el('div', { id: 'prompt-preview', className: 'prompt-box prompt-preview', text: preview })])])]);
 }
 
 function currentWorkflow() {
@@ -320,8 +339,8 @@ function renderWorkflows() {
   const feasibility = workflowFeasibility(workflow);
   const templates = el('aside', { className: 'template-list' }, state.data.workflow_templates.map((template) => el('button', { className: `template-button ${template.id === workflow.id ? 'is-selected' : ''}`, type: 'button', on: { click: () => { state.workflowId = template.id; state.workflow = null; render(); } } }, [el('strong', { text: template.name }), el('span', { text: template.description })])));
   const makeRoleOptions = () => [el('option', { value: '', text: 'Select a role' }), ...state.data.roles.map((role) => el('option', { value: role.name, text: `${role.display_name} · ${role.runtime ? 'typed' : 'registry'}` }))];
-  const steps = workflow.steps.map((step, index) => { const role = roleById(step.role); return el('article', { className: 'workflow-step' }, [el('span', { className: 'step-index', text: `STEP ${String(index + 1).padStart(2, '0')}` }), el('h3', { text: role?.title || 'Unassigned role' }), el('p', { text: role?.display_name || 'Choose a role for this step.' }), el('div', { className: 'step-fields' }, [el('select', { value: step.role, on: { change: (event) => { step.role = event.target.value; render(); } } }, makeRoleOptions()), el('input', { type: 'text', value: step.gate, ariaLabel: 'Approval gate', on: { input: (event) => { step.gate = event.target.value; } } }), el('input', { type: 'text', value: step.output, ariaLabel: 'Expected output', on: { input: (event) => { step.output = event.target.value; } } }), button('Remove', 'small danger', () => { workflow.steps.splice(index, 1); render(); })])]); });
-  return el('div', {}, [pageHeading('Workflow designer', 'Compose a bounded path.', 'Design and export workflows with explicit roles, outputs, dependencies, and approval gates. Execution is intentionally unavailable in this static build.'), el('div', { className: 'workflow-layout' }, [templates, el('section', { className: 'workflow-main' }, [el('div', { className: 'workflow-toolbar' }, [el('div', {}, [el('h1', { text: workflow.name }), el('p', { text: workflow.description })]), el('div', { className: 'workflow-actions' }, [badge(feasibility.ready ? 'All steps typed' : `${feasibility.typed}/${feasibility.total} typed`, feasibility.ready ? 'green' : 'amber'), button('Add step', 'small ghost', () => { workflow.steps.push({ role: '', gate: 'Human review', output: 'Documented output' }); render(); }), button('Copy JSON', 'small ghost', () => copyText(JSON.stringify(workflow, null, 2))), button('Export JSON', 'small primary', () => downloadText(`${workflow.id}.json`, JSON.stringify(workflow, null, 2)))])]), el('div', { className: 'workflow-canvas', role: 'region', ariaLabel: 'Workflow canvas' }, [el('div', { className: 'workflow-rail' }, steps.length ? steps : [el('div', { className: 'empty-state', text: 'Add a step to start designing.' })])]), el('div', { className: 'panel outline-panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Accessible workflow outline' }), el('p', { text: 'The linear view is the authoritative reading order for this design surface.' })]), badge('Design only', 'amber')]), el('div', { className: 'outline-list' }, workflow.steps.map((step, index) => { const role = roleById(step.role); return el('div', { className: 'outline-item' }, [el('span', { className: 'outline-number', text: String(index + 1) }), el('div', {}, [el('strong', { text: role?.title || 'Unassigned role' }), el('span', { text: `${step.gate} → ${step.output}` })]), badge(role?.runtime ? 'typed' : 'registry', role?.runtime ? 'green' : 'amber')]); }))])])])]);
+  const steps = workflow.steps.map((step, index) => { const role = roleById(step.role); return el('article', { className: 'workflow-step' }, [el('span', { className: 'step-index', text: `STEP ${String(index + 1).padStart(2, '0')}` }), el('h3', { text: role?.title || 'Unassigned role' }), el('p', { text: role?.display_name || 'Choose a role for this step.' }), el('div', { className: 'step-fields' }, [el('select', { ariaLabel: `Step ${index + 1} role`, value: step.role, on: { change: (event) => { step.role = event.target.value; render(); } } }, makeRoleOptions()), el('input', { type: 'text', value: step.gate, ariaLabel: 'Approval gate', on: { input: (event) => { step.gate = event.target.value; } } }), el('input', { type: 'text', value: step.output, ariaLabel: 'Expected output', on: { input: (event) => { step.output = event.target.value; } } }), button('Remove', 'small danger', () => { workflow.steps.splice(index, 1); render(); })])]); });
+  return el('div', {}, [pageHeading('Workflow designer', 'Compose a bounded path.', 'Design and export workflows with explicit roles, outputs, dependencies, and approval gates. Execution is intentionally unavailable in this static build.'), el('div', { className: 'workflow-layout' }, [templates, el('section', { className: 'workflow-main' }, [el('div', { className: 'workflow-toolbar' }, [el('div', {}, [el('h1', { text: workflow.name }), el('p', { text: workflow.description })]), el('div', { className: 'workflow-actions' }, [badge(feasibility.ready ? 'All steps typed' : `${feasibility.typed}/${feasibility.total} typed`, feasibility.ready ? 'green' : 'amber'), button('Add step', 'small ghost', () => { workflow.steps.push({ role: '', gate: 'Human review', output: 'Documented output' }); render(); }), button('Copy JSON', 'small ghost', () => copyText(JSON.stringify(workflow, null, 2))), button('Export JSON', 'small primary', () => downloadText(`${workflow.id}.json`, JSON.stringify(workflow, null, 2)))])]), el('div', { className: 'workflow-canvas', role: 'region', ariaLabel: 'Workflow canvas' }, [el('h2', { className: 'sr-only', text: 'Workflow steps' }), el('div', { className: 'workflow-rail' }, steps.length ? steps : [el('div', { className: 'empty-state', text: 'Add a step to start designing.' })])]), el('div', { className: 'panel outline-panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Accessible workflow outline' }), el('p', { text: 'The linear view is the authoritative reading order for this design surface.' })]), badge('Design only', 'amber')]), el('div', { className: 'outline-list' }, workflow.steps.map((step, index) => { const role = roleById(step.role); return el('div', { className: 'outline-item' }, [el('span', { className: 'outline-number', text: String(index + 1) }), el('div', {}, [el('strong', { text: role?.title || 'Unassigned role' }), el('span', { text: `${step.gate} → ${step.output}` })]), badge(role?.runtime ? 'typed' : 'registry', role?.runtime ? 'green' : 'amber')]); }))])])])]);
 }
 
 function renderEvaluations() {
@@ -379,6 +398,9 @@ function render() {
 function applyTheme() {
   document.documentElement.dataset.theme = state.theme;
   localStorage.setItem('agent-factory-theme', state.theme);
+  const themeToggle = document.querySelector('#theme-toggle');
+  themeToggle?.setAttribute('aria-label', state.theme === 'dark' ? 'Toggle light theme' : 'Toggle dark theme');
+  themeToggle?.setAttribute('aria-pressed', String(state.theme === 'light'));
 }
 
 function initializeExperiencePicker() {
@@ -392,11 +414,13 @@ document.querySelectorAll('.nav-item').forEach((item) => item.addEventListener('
 document.querySelector('#mobile-menu').addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('is-open')));
 document.querySelector('#sidebar-toggle').addEventListener('click', () => { const collapsed = sidebar.classList.toggle('is-collapsed'); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', String(!collapsed)); });
 document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; applyTheme(); });
-document.querySelector('#global-search').addEventListener('input', (event) => { state.search = event.target.value; if (state.view !== 'agents') state.view = 'agents'; location.hash = 'agents'; render(); });
-document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search').focus(); } if (event.key === 'Escape' && sidebar.classList.contains('is-open')) setSidebarOpen(false); });
+document.querySelector('#global-search').addEventListener('input', (event) => { const value = event.target.value; state.search = value; if (state.view !== 'agents') state.view = 'agents'; location.hash = 'agents'; render(); restoreFocus('#global-search', value); });
+document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search').focus(); } if (event.key === 'Escape' && sidebar.classList.contains('is-open')) { setSidebarOpen(false); document.querySelector('#mobile-menu')?.focus(); } });
 window.addEventListener('hashchange', () => { const requested = location.hash.slice(1) || 'overview'; const next = validViews.has(requested) ? requested : 'overview'; state.view = next; if (requested !== next) history.replaceState({}, '', '#overview'); render(); });
 
 initializeExperiencePicker();
 applyTheme();
 applyExperience();
+setSidebarOpen(false);
+window.matchMedia('(max-width: 780px)').addEventListener?.('change', () => setSidebarOpen(false));
 fetch('../catalog/roles.json', { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); state.graph = buildCapabilityGraph(state.data); render(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });

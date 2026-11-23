@@ -7,6 +7,14 @@
   "scripts": {
     "build:site": "node scripts/build-site.mjs",
     "validate": "node scripts/validate-catalog.mjs",
-    "test": "node scripts/test-catalog.mjs"
+    "test": "node scripts/test-catalog.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
+    "test:e2e:report": "playwright show-report",
+    "test:security": "node scripts/test-security.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.65.1"
   }
 }

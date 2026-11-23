@@ -26,6 +26,7 @@ The repository is a source of truth for role design and documentation. It does n
 - `docs/role-catalog.md` — detailed role reference.
 - `docs/prompt-library.md` — complete reusable prompt library.
 - `docs/governance.md` — promotion, safety, legal, and privacy boundaries.
+- `docs/release-readiness-v3.md` — God Loop V3 QA evidence, visual matrix, findings, and release gates.
 - `scripts/validate-catalog.mjs` — deterministic catalog validation.
 - `scripts/test-catalog.mjs` — regression checks for catalog, profile, workflow, dashboard, and cross-platform behavior.
 
@@ -43,9 +44,11 @@ The generator refreshes catalog and documentation artifacts without replacing th
 npm test
 npm run validate
 node --check dashboard/app.js
+npm run test:security
+npm run test:e2e
 ```
 
-Continuous integration runs the same checks on Ubuntu and Windows.
+Continuous integration runs catalog, build, security, and browser checks on Ubuntu and Windows; Windows also runs the committed visual matrix.
 
 ## Naming convention
 
