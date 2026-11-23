@@ -1,6 +1,6 @@
 # Agent Factory
 
-[GitHub repository](https://github.com/Jeevan-0508/agent-factory) · [Draft Multiverse V2 pull request](https://github.com/Jeevan-0508/agent-factory/pull/1)
+[GitHub repository](https://github.com/Jeevan-0508/agent-factory) · [Dashboard source](https://github.com/Jeevan-0508/agent-factory/tree/codex/god-mode-v2/dashboard) · [Draft Multiverse V2 pull request](https://github.com/Jeevan-0508/agent-factory/pull/1)
 
 Agent Factory is a versioned, evidence-constrained catalog of 100 specialist Codex roles. Every role has:
 
