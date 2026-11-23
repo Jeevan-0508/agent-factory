@@ -21,6 +21,7 @@ jobs:
       - run: npm run validate
       - run: npm run build:site
       - run: npm run test:security
+      - run: npm run test:runtime
       - run: npm audit --audit-level=low
       - run: node --check scripts/generate.mjs
       - run: node --check scripts/validate-catalog.mjs
@@ -72,5 +73,34 @@ jobs:
           name: visual-evidence-windows
           path: |
             playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+  runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - if: runner.os == 'Windows'
+        run: npx playwright install chromium
+      - run: npm run test:runtime
+      - run: npm run test:e2e:runtime
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-evidence-${{ matrix.os }}
+          path: |
+            playwright-runtime-report/
             test-results/
           if-no-files-found: ignore

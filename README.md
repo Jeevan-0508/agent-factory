@@ -27,10 +27,28 @@ The repository is a source of truth for role design and documentation. It does n
 - `docs/prompt-library.md` — complete reusable prompt library.
 - `docs/governance.md` — promotion, safety, legal, and privacy boundaries.
 - `docs/release-readiness-v3.md` — God Loop V3 QA evidence, visual matrix, findings, and release gates.
+- `docs/runtime-api.md` — local API routes, lifecycle examples, and client contract.
+- `docs/workflow-lifecycle.md` — bounded orchestration, approvals, retries, recovery, and handoffs.
+- `docs/security-model.md` — authorization, threat model, kill switch, and safe-tool boundary.
+- `docs/provider-adapters.md` — provider-neutral adapter contract and offline-first policy.
+- `docs/database-schema.md` — durable SQLite tables and persistence responsibilities.
+- `docs/evaluation-methodology.md` — structural, deterministic, connected, and human evaluation layers.
+- `docs/visual-comparison-v4.md` — retained desktop/mobile visual evidence and design comparison.
 - `scripts/validate-catalog.mjs` — deterministic catalog validation.
 - `scripts/test-catalog.mjs` — regression checks for catalog, profile, workflow, dashboard, and cross-platform behavior.
 
 The multiverse experiences are Command Center, Minimal Studio, Cyberpunk Neon, Glass Universe, Agent Galaxy, Mythology Atlas, Retro Terminal, and Neo-Brutalist Lab. They share the same catalog and application state; the selected experience is persisted locally and switching does not reset the active search, role, prompt, or workflow draft.
+
+## Local runtime (V4)
+
+The V4 runtime is an opt-in loopback service backed by SQLite and Node's built-in `node:sqlite` module. It provides deterministic local execution for typed roles, explicit authorization plans, approval-gated tasks, bounded workflows, structured handoffs, evidence, audit events, provider metadata, and a kill switch. No network or paid provider call is made by default.
+
+```text
+npm install
+npm run start:local
+```
+
+Open `http://127.0.0.1:8787/dashboard/` and choose **Execution console**. The default data directory is `.data/`; set `AGENT_FACTORY_DATA_DIR` to use another local directory. The connected-model adapter remains disabled until credentials, scope, and authorization are explicitly implemented by the operator.
 
 ## Local preview
 
@@ -45,7 +63,9 @@ npm test
 npm run validate
 node --check dashboard/app.js
 npm run test:security
+npm run test:runtime
 npm run test:e2e
+npm run test:e2e:runtime
 ```
 
 Continuous integration runs catalog, build, security, and browser checks on Ubuntu and Windows; Windows also runs the committed visual matrix.

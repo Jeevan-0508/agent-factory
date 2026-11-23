@@ -15,3 +15,14 @@ Only copy a reviewed TOML from `runtime/approved/` into the selected Codex runti
 
 The current repository snapshot intentionally keeps new roles registry-only. The generated TOML files in `agents/` are portable definitions, not an automatic permission grant.
 
+## Run the local execution plane
+
+Node 22+ is required for the built-in SQLite runtime. From the repository root:
+
+```text
+npm install
+npm run start:local
+```
+
+Open `http://127.0.0.1:8787/dashboard/`, establish the local session, and select **Execution console**. The service creates `.data/agent-factory.sqlite`, applies migrations, and recovers interrupted workflow runs on startup. Use `AGENT_FACTORY_DATA_DIR` for a disposable or separate local database. No provider credentials are needed for the deterministic offline scenarios.
+

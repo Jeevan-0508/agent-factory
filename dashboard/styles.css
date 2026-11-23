@@ -291,6 +291,72 @@ html[data-theme="light"] .prompt-box { background: #f3f6fb; color: #324056; }
   .workflow-toolbar { display: block; }
   .workflow-actions { justify-content: flex-start; margin-top: 14px; }
 }
+
+/* V4 execution surfaces: one semantic runtime, eight presentation identities. */
+.execution-surface { --execution-accent: #63a9ff; --execution-ink: var(--text); --execution-muted: var(--muted); }
+.execution-status-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.execution-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 17px; margin-top: 17px; }
+.execution-bottom-grid { align-items: start; }
+.execution-card { min-width: 0; border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow); }
+.execution-console-card { border-top: 3px solid var(--execution-accent); }
+.execution-card-kicker, .execution-event-type { color: var(--execution-accent); font: 700 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.execution-card h2, .execution-card h3 { margin: 6px 0 7px; }
+.execution-card p { color: var(--execution-muted); line-height: 1.55; }
+.execution-status-strip .metric-card { min-height: 112px; }
+.execution-select, .execution-input { width: 100%; margin: 7px 0 16px; }
+.field-label { display: block; color: var(--execution-muted); font: 700 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.execution-input { resize: vertical; border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: var(--input); color: var(--text); font: 13px/1.55 var(--mono); }
+.execution-input:focus, .execution-select:focus { outline: 2px solid var(--execution-accent); outline-offset: 2px; }
+.form-hint, .execution-note { font-size: 12px; margin-bottom: 0; }
+.provider-list { display: grid; gap: 10px; }
+.provider-row { display: flex; gap: 12px; justify-content: space-between; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.provider-row strong, .provider-row span { display: block; }
+.provider-row span { color: var(--execution-muted); font-size: 12px; margin-top: 3px; }
+.execution-note { margin-top: 16px; padding: 12px; border-left: 3px solid var(--execution-accent); background: color-mix(in srgb, var(--execution-accent) 7%, transparent); }
+.scenario-deck { margin-top: 17px; }
+.scenario-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.scenario-card { padding: 16px; box-shadow: none; background: color-mix(in srgb, var(--panel) 76%, transparent); }
+.scenario-card .button { margin-top: 15px; width: 100%; }
+.scenario-card h3 { font-size: 16px; }
+.scenario-card p { font-size: 13px; min-height: 62px; }
+.scenario-card .tag-list { min-height: 45px; }
+.execution-timeline { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; max-height: 480px; overflow: auto; }
+.execution-event { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; padding: 12px; border-left: 2px solid var(--execution-accent); background: color-mix(in srgb, var(--panel-strong) 68%, transparent); }
+.execution-event time { color: var(--execution-muted); font: 11px var(--mono); }
+.execution-event pre { grid-column: 1 / -1; margin: 0; white-space: pre-wrap; color: var(--execution-muted); font: 11px/1.45 var(--mono); }
+.execution-empty { padding: 24px; color: var(--execution-muted); border: 1px dashed var(--line); }
+.evidence-json { min-height: 250px; max-height: 470px; margin: 0; padding: 15px; overflow: auto; border-radius: 12px; background: #0a0f17; color: #b9e4ff; font: 12px/1.55 var(--mono); white-space: pre-wrap; }
+.execution-surface .callout.danger { border-color: #ef6b73; color: #ffd8db; }
+
+html[data-experience="command-center"] .execution-surface { --execution-accent: #64a9ff; }
+html[data-experience="minimal-studio"] .execution-surface { --execution-accent: #1e6d55; font-family: Georgia, serif; }
+html[data-experience="minimal-studio"] .execution-card { border-radius: 0; box-shadow: none; background: transparent; border-left: 0; border-right: 0; }
+html[data-experience="cyberpunk-neon"] .execution-surface { --execution-accent: #ff43d1; }
+html[data-experience="cyberpunk-neon"] .execution-card { border-color: color-mix(in srgb, #ff43d1 42%, var(--line)); border-radius: 3px; box-shadow: 0 0 24px #ff43d11c; }
+html[data-experience="glass-universe"] .execution-card { backdrop-filter: blur(18px); background: color-mix(in srgb, #ffffff 8%, transparent); border-color: #ffffff2e; }
+html[data-experience="agent-galaxy"] .execution-surface { --execution-accent: #b38cff; }
+html[data-experience="agent-galaxy"] .execution-card { border-radius: 28px; background: radial-gradient(circle at 80% 0, #523f8b26, transparent 40%), color-mix(in srgb, var(--panel) 91%, transparent); }
+html[data-experience="mythology-atlas"] .execution-surface { --execution-accent: #d99b3e; }
+html[data-experience="mythology-atlas"] .execution-card { border-radius: 4px 18px 4px 18px; }
+html[data-experience="retro-terminal"] .execution-surface { --execution-accent: #7aff87; font-family: var(--mono); }
+html[data-experience="retro-terminal"] .execution-card { border-radius: 0; border-color: #7aff8745; box-shadow: 0 0 0 1px #7aff8715 inset; }
+html[data-experience="retro-terminal"] .execution-card h2, html[data-experience="retro-terminal"] .execution-card h3 { text-transform: uppercase; }
+html[data-experience="neo-brutalist-lab"] .execution-surface { --execution-accent: #ff6138; }
+html[data-experience="neo-brutalist-lab"] .execution-card { border: 3px solid #111; border-radius: 0; box-shadow: 7px 7px 0 #111; }
+
+@media (max-width: 1120px) {
+  .scenario-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 780px) {
+  .execution-status-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .execution-grid, .execution-bottom-grid { grid-template-columns: 1fr; }
+  .scenario-grid { grid-template-columns: 1fr; }
+  .scenario-card p, .scenario-card .tag-list { min-height: 0; }
+  .execution-card { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .execution-card, .execution-event { transition: none !important; animation: none !important; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
