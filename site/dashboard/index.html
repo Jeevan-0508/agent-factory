@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="AGENT//FACTORY public static showcase: 100 governed agent identities across eight visual universes.">
+    <title>AGENT//FACTORY — Public Showcase</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand-row">
+          <a class="brand" href="#overview" aria-label="Agent Factory home"><span class="brand-mark" aria-hidden="true">✦</span><span>Agent Factory</span></a>
+          <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-controls="sidebar" aria-expanded="true">‹</button>
+        </div>
+        <div class="sidebar-caption">Public static showcase</div>
+        <nav class="main-nav" aria-label="Main navigation">
+          <button class="nav-item is-active" type="button" data-view="overview"><span aria-hidden="true">⌂</span><span>Overview</span></button>
+          <button class="nav-item" type="button" data-view="agents"><span aria-hidden="true">◎</span><span>Agent explorer</span><span class="nav-count" id="nav-agent-count">100</span></button>
+          <button class="nav-item" type="button" data-view="prompts"><span aria-hidden="true">✎</span><span>Prompt Studio</span></button>
+          <button class="nav-item" type="button" data-view="workflows"><span aria-hidden="true">⌘</span><span>Workflows</span><span class="nav-count" id="nav-workflow-count">5</span></button>
+          <button class="nav-item" type="button" data-view="evaluations"><span aria-hidden="true">✓</span><span>Evaluation lab</span></button>
+          <button class="nav-item" type="button" data-view="governance"><span aria-hidden="true">▣</span><span>Governance</span></button>
+        </nav>
+        <div class="sidebar-health panel-dark">
+          <div class="health-heading"><span class="status-dot is-green"></span><strong>Catalog snapshot</strong><span class="health-label">LOCAL</span></div>
+          <div class="health-line"><span>Recorded checks</span><strong>100/100</strong></div>
+          <div class="meter"><span style="width:100%"></span></div>
+          <div class="health-line"><span>Catalog compatibility</span><strong>30/100</strong></div>
+          <div class="meter meter-amber"><span style="width:30%"></span></div>
+          <p class="sidebar-note">Showcase mode: no backend execution, private runtime data, or live telemetry is connected here.</p>
+        </div>
+          <div class="sidebar-footer"><span class="avatar">AF</span><div><strong>Agent Factory</strong><span>Static showcase</span></div><span class="muted">⌄</span></div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <button class="icon-button mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <div class="breadcrumbs"><span>Agent Factory</span><span aria-hidden="true">/</span><strong id="page-label">Overview</strong></div>
+          <label class="global-search"><span aria-hidden="true">⌕</span><input id="global-search" type="search" placeholder="Search agents, runs, or documentation…" autocomplete="off"><kbd>⌘ K</kbd></label>
+          <label class="experience-picker"><span>Experience</span><select id="experience-select" aria-label="Choose visual experience"></select></label>
+          <button class="icon-button" id="theme-toggle" type="button" aria-label="Toggle light theme">☼</button>
+          <div class="operator"><span class="avatar avatar-purple">AF</span><div><strong>Agent Factory</strong><span>Principal workspace</span></div></div>
+        </header>
+
+        <div id="app" class="page-stack" tabindex="-1">
+          <div class="loading-state"><span class="spinner"></span><p>Loading command center…</p></div>
+        </div>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
