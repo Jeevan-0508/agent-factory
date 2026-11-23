@@ -1,4 +1,12 @@
 node_modules/
+dist/
+pages-dist/
+.codex-forge/
 .DS_Store
 *.log
+test-results/
+playwright-report/
+playwright-runtime-report/
+.data/
+tests/e2e/visual.spec.mjs-snapshots/*win32.png
 
