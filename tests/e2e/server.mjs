@@ -21,7 +21,7 @@ const server = http.createServer((request, response) => {
   if (!candidate) { response.writeHead(400); response.end('Bad request'); return; }
   const filePath = fs.existsSync(candidate) && fs.statSync(candidate).isFile() ? candidate : path.join(candidate, 'index.html');
   if (!filePath.startsWith(root + path.sep) || !fs.existsSync(filePath)) { response.writeHead(404); response.end('Not found'); return; }
-  response.writeHead(200, { 'Content-Type': types[path.extname(filePath)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'" });
+  response.writeHead(200, { 'Content-Type': types[path.extname(filePath)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'" });
   fs.createReadStream(filePath).pipe(response);
 });
 
