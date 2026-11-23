@@ -1,0 +1,426 @@
+import { EXPERIENCES, buildCapabilityGraph, experienceById, renderExperienceAgents, renderExperienceOverview } from './experiences.js';
+
+const app = document.querySelector('#app');
+const toast = document.querySelector('#toast');
+const sidebar = document.querySelector('#sidebar');
+const pageLabel = document.querySelector('#page-label');
+const SVG_TAGS = new Set(['svg', 'g', 'circle', 'line', 'rect', 'title']);
+
+const state = {
+  data: null,
+  view: location.hash.slice(1) || 'overview',
+  search: '',
+  family: '',
+  runtime: '',
+  sort: 'title',
+  agentId: null,
+  promptRoleId: null,
+  promptFilter: '',
+  promptTemplate: 'Role brief',
+  promptContext: '',
+  workflowId: null,
+  workflow: null,
+  theme: localStorage.getItem('agent-factory-theme') || 'dark',
+  experience: localStorage.getItem('agent-factory-experience') || 'command-center',
+  graph: null
+};
+
+const viewLabels = {
+  overview: 'Overview', agents: 'Agent explorer', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', evaluations: 'Evaluation lab', governance: 'Governance'
+};
+const validViews = new Set(Object.keys(viewLabels));
+if (!validViews.has(state.view)) state.view = 'overview';
+
+function el(tag, options = {}, children = []) {
+  const node = SVG_TAGS.has(tag) ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
+  for (const [key, value] of Object.entries(options)) {
+    if (key === 'className') node.setAttribute('class', value);
+    else if (key === 'text') node.textContent = value;
+    else if (key === 'on') for (const [event, handler] of Object.entries(value)) node.addEventListener(event, handler);
+    else if (key === 'dataset') Object.assign(node.dataset, value);
+    else if (key === 'style') Object.assign(node.style, value);
+    else if (key === 'value') node.value = value;
+    else if (key === 'checked') node.checked = value;
+    else if (key === 'selected') node.selected = value;
+    else if (key === 'ariaLabel') { if (value) node.setAttribute('aria-label', value); }
+    else if (key === 'ariaCurrent') node.setAttribute('aria-current', value);
+    else if (key === 'htmlFor') node.setAttribute('for', value);
+    else if (key === 'disabled') node.disabled = value;
+    else if (key === 'href') node.href = value;
+    else if (key === 'target') node.target = value;
+    else if (key === 'rel') node.rel = value;
+    else node.setAttribute(key, value);
+  }
+  for (const child of children.flat()) if (child) node.append(child.nodeType ? child : document.createTextNode(String(child)));
+  return node;
+}
+
+function button(label, className, handler, options = {}) {
+  return el('button', { className: `button ${className || ''}`, type: 'button', disabled: Boolean(options.disabled), on: { click: handler }, ariaLabel: options.ariaLabel }, [label]);
+}
+
+function list(items, className = '') {
+  return el('ul', { className }, items.map((item) => el('li', { text: item })));
+}
+
+function badge(text, tone = '') { return el('span', { className: `pill ${tone}` }, [el('span', { className: 'status-dot' }), text]); }
+function tag(text) { return el('span', { className: 'tag', text }); }
+function tags(items) { return el('div', { className: 'tag-list' }, items.map(tag)); }
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add('is-visible');
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => toast.classList.remove('is-visible'), 2800);
+}
+
+async function copyText(value, success = 'Copied to clipboard') {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const input = el('textarea', { value });
+    input.style.position = 'fixed'; input.style.opacity = '0';
+    document.body.append(input); input.select(); document.execCommand('copy'); input.remove();
+  }
+  showToast(success);
+}
+
+function downloadText(filename, value, type = 'application/json') {
+  const url = URL.createObjectURL(new Blob([value], { type }));
+  const link = el('a', { href: url, download: filename });
+  document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+  showToast(`Downloaded ${filename}`);
+}
+
+function roleById(id) { return state.data.roles.find((role) => role.name === id); }
+function familyCount(family) { return state.data.roles.filter((role) => role.family === family).length; }
+function roleRuntimeLabel(role) { return role.runtime ? 'Typed runtime' : 'Registry only'; }
+function roleRuntimeTone(role) { return role.runtime ? 'green' : 'amber'; }
+
+function normalizeCatalog(data) {
+  const family_counts = data.roles.reduce((counts, role) => {
+    counts[role.family] = (counts[role.family] || 0) + 1;
+    return counts;
+  }, {});
+  return { ...data, family_counts };
+}
+
+function applyExperience() {
+  const experience = experienceById(state.experience);
+  state.experience = experience.id;
+  document.documentElement.dataset.experience = experience.id;
+  const selector = document.querySelector('#experience-select');
+  if (selector) selector.value = experience.id;
+  localStorage.setItem('agent-factory-experience', experience.id);
+}
+
+function setExperience(experience) {
+  state.experience = experience;
+  applyExperience();
+  render();
+}
+
+function restoreFocus(selector, value = '') {
+  const node = document.querySelector(selector);
+  if (!node) return;
+  node.focus({ preventScroll: true });
+  if (typeof node.setSelectionRange === 'function' && value) node.setSelectionRange(value.length, value.length);
+}
+
+function setView(view, replace = false) {
+  state.view = view;
+  state.agentId = null;
+  if (replace) history.replaceState({}, '', `#${view}`); else location.hash = view;
+  render();
+  setSidebarOpen(false);
+  app.focus({ preventScroll: true });
+}
+
+function setSidebarOpen(open) {
+  sidebar.classList.toggle('is-open', open);
+  const mobile = window.matchMedia('(max-width: 780px)').matches;
+  const mobileMenu = document.querySelector('#mobile-menu');
+  mobileMenu?.setAttribute('aria-expanded', String(open));
+  mobileMenu?.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+  if (mobile) {
+    sidebar.inert = !open;
+    sidebar.setAttribute('aria-hidden', String(!open));
+    if (open) requestAnimationFrame(() => sidebar.querySelector('.nav-item')?.focus({ preventScroll: true }));
+  } else {
+    sidebar.inert = false;
+    sidebar.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function updateNav() {
+  const active = state.view === 'agent-detail' ? 'agents' : state.view;
+  document.querySelectorAll('.nav-item').forEach((item) => {
+    const selected = item.dataset.view === active;
+    item.classList.toggle('is-active', selected);
+    item.setAttribute('aria-current', selected ? 'page' : 'false');
+  });
+  pageLabel.textContent = viewLabels[state.view] || 'Overview';
+  document.querySelector('#nav-agent-count').textContent = state.data?.roles.length ?? '—';
+  document.querySelector('#nav-workflow-count').textContent = state.data?.workflow_templates.length ?? '—';
+}
+
+function openRole(roleId) {
+  state.agentId = roleId;
+  state.view = 'agent-detail';
+  location.hash = 'agent-detail';
+  render();
+  restoreFocus('.detail-header h1');
+}
+
+function setSearch(value) {
+  state.search = value;
+}
+
+function safeSourceUrl(value) {
+  try {
+    const url = new URL(value);
+    const allowedHosts = new Set(['eur-lex.europa.eu', 'digital-strategy.ec.europa.eu', 'www.nist.gov']);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !allowedHosts.has(url.hostname)) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function filteredRoles() {
+  return state.data.roles.filter((role) => {
+    const haystack = [role.name, role.title, role.display_name, role.family, role.mission, ...role.capabilities, ...role.knowledge_domains].join(' ').toLowerCase();
+    return (!state.search || haystack.includes(state.search.toLowerCase())) && (!state.family || role.family === state.family) && (!state.runtime || (state.runtime === 'runtime') === role.runtime);
+  }).sort((a, b) => state.sort === 'title' ? a.title.localeCompare(b.title) : state.sort === 'family' ? a.family.localeCompare(b.family) : a.display_name.localeCompare(b.display_name));
+}
+
+function agentToolbar() {
+  return el('div', { className: 'toolbar' }, [
+    el('input', { className: 'search-field', type: 'search', ariaLabel: 'Search agents', placeholder: 'Search names, aliases, families, missions, capabilities…', value: state.search, on: { input: (event) => { const value = event.target.value; state.search = value; render(); restoreFocus('.toolbar .search-field', value); } } }),
+    el('select', { className: 'select-field', ariaLabel: 'Family filter', value: state.family, on: { change: (event) => { state.family = event.target.value; render(); restoreFocus('.toolbar .select-field:nth-of-type(1)'); } } }, [el('option', { value: '', text: 'All families' }), ...Object.keys(state.data.family_counts).sort().map((family) => el('option', { value: family, text: family }))]),
+    el('select', { className: 'select-field', ariaLabel: 'Runtime state filter', value: state.runtime, on: { change: (event) => { state.runtime = event.target.value; render(); restoreFocus('.toolbar .select-field:nth-of-type(2)'); } } }, [el('option', { value: '', text: 'All runtime states' }), el('option', { value: 'runtime', text: 'Typed runtime' }), el('option', { value: 'registry', text: 'Registry only' })]),
+    el('select', { className: 'select-field', ariaLabel: 'Sort order', value: state.sort, on: { change: (event) => { state.sort = event.target.value; render(); restoreFocus('.toolbar .select-field:nth-of-type(3)'); } } }, [el('option', { value: 'title', text: 'Sort: role' }), el('option', { value: 'family', text: 'Sort: family' }), el('option', { value: 'alias', text: 'Sort: codename' })])
+  ]);
+}
+
+function experienceContext() {
+  return { el, button, badge, tags, list, metricCard, setView, openRole, setSearch, roleById, data: state.data, state, graph: state.graph, filteredRoles, agentToolbar, agentCard, applyExperience, render };
+}
+
+function pageHeading(eyebrow, title, description, actions = []) {
+  return el('div', { className: 'page-heading' }, [
+    el('div', {}, [el('div', { className: 'eyebrow', text: eyebrow }), el('h1', { text: title }), el('p', { text: description })]),
+    el('div', { className: 'heading-actions' }, actions)
+  ]);
+}
+
+function metricCard(label, value, foot, icon = '◈') {
+  return el('article', { className: 'metric-card' }, [
+    el('div', { className: 'metric-top' }, [el('span', { text: label }), el('span', { className: 'metric-icon', text: icon })]),
+    el('strong', { className: 'metric-value', text: String(value) }),
+    el('span', { className: 'metric-foot', text: foot })
+  ]);
+}
+
+function renderOverviewLegacy() {
+  const roles = state.data.roles;
+  const families = Object.entries(state.data.family_counts).sort((a, b) => b[1] - a[1]);
+  const maxFamily = Math.max(...families.map(([, count]) => count));
+  const overview = el('div', {}, [
+    pageHeading('Command center', 'A governed team for ambitious work.', 'Explore 100 specialist roles, compose bounded workflows, and inspect the evidence behind every runtime claim.', [button('Explore agents', 'primary', () => setView('agents')), button('Open workflow designer', 'ghost', () => setView('workflows'))]),
+    el('div', { className: 'hero' }, [
+      el('section', { className: 'hero-card' }, [el('div', { className: 'eyebrow', text: 'AGENT FACTORY / GOD MODE V2' }), el('h2', { text: 'Make coordination feel like a product.' }), el('p', { text: 'A high-signal command center for agent roles, prompt contracts, workflow design, evaluations, and human approval boundaries.' }), el('div', { className: 'hero-meta' }, [badge('Catalog verified', 'green'), badge('Static / no executor', 'blue'), badge('Human approval first', 'amber')])]),
+      el('aside', { className: 'hero-side' }, [
+        el('section', { className: 'insight-card' }, [el('h3', { text: 'Runtime truth' }), el('p', { text: '30 profiles are typed runtime roles. 70 are registry-only. This dashboard never converts a TOML file into a claim that an agent is running.' })]),
+        el('section', { className: 'insight-card' }, [el('h3', { text: 'Evaluation posture' }), el('p', { text: 'Catalog and prompt contracts are statically validated. Scenario and live-runtime evaluation remain explicitly unmeasured.' })])
+      ])
+    ]),
+    el('div', { className: 'metric-grid' }, [
+      metricCard('Registered agents', roles.length, 'Source: catalog / 100 roles', '◎'),
+      metricCard('Typed runtime roles', state.data.runtime_supported_roles.length, 'Source: approved runtime list', '⌁'),
+      metricCard('Registry-only roles', state.data.registry_only_roles.length, 'Needs explicit promotion', '◌'),
+      metricCard('Workflow templates', state.data.workflow_templates.length, 'Design and export only', '⌘')
+    ]),
+    el('div', { className: 'dashboard-grid' }, [
+      el('section', { className: 'panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Role families' }), el('p', { text: 'Coverage across engineering, AI, governance, people, and operations.' })]), badge('11 domains', 'blue')]), el('div', { className: 'family-list' }, families.map(([family, count]) => el('div', { className: 'family-row' }, [el('strong', { text: family }), el('div', { className: 'family-bar' }, [el('span', { style: { width: `${Math.round((count / maxFamily) * 100)}%` } })]), el('span', { className: 'mono', text: String(count).padStart(2, '0') })]))) ]),
+      el('section', { className: 'panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Workflow templates' }), el('p', { text: 'Predefined paths with visible feasibility.' })]), button('View all', 'small ghost', () => setView('workflows'))]), el('div', { className: 'workflow-list' }, state.data.workflow_templates.slice(0, 5).map((workflow) => { const runtime = workflow.steps.filter((step) => roleById(step.role)?.runtime).length; return el('button', { className: 'workflow-row', type: 'button', on: { click: () => { state.workflowId = workflow.id; setView('workflows'); } } }, [el('span', { className: 'workflow-glyph', text: '⌘' }), el('div', {}, [el('strong', { text: workflow.name }), el('span', { text: `${workflow.steps.length} steps · ${runtime}/${workflow.steps.length} typed` })]), badge(runtime === workflow.steps.length ? 'Runnable shape' : 'Design only', runtime === workflow.steps.length ? 'green' : 'amber')]); })) ])
+    ]),
+    el('section', { className: 'panel', style: { marginTop: '17px' } }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Verification ledger' }), el('p', { text: 'Checks that are recorded versus checks that still need execution.' })]), button('Open evaluation lab', 'small ghost', () => setView('evaluations'))]), el('div', { className: 'governance-grid' }, [
+      el('div', { className: 'check-card' }, [el('h2', { text: 'Catalog integrity' }), el('p', { text: 'All stable IDs, mythic aliases, profile fields, and TOML definitions agree.' }), el('div', { className: 'check-status' }, [el('span', { text: 'Static validation' }), el('strong', { text: 'PASSED' })])]),
+      el('div', { className: 'check-card' }, [el('h2', { text: 'Prompt contracts' }), el('p', { text: 'Every role has a reusable prompt, boundaries, inputs, outputs, and failure behavior.' }), el('div', { className: 'check-status' }, [el('span', { text: 'Schema coverage' }), el('strong', { text: '100 / 100' })])]),
+      el('div', { className: 'check-card' }, [el('h2', { text: 'Live performance' }), el('p', { text: 'No provider runs or empirical performance scores are present in this static build.' }), el('div', { className: 'check-status' }, [el('span', { text: 'Evidence status' }), el('strong', { style: { color: 'var(--amber)' }, text: 'NOT MEASURED' })])])
+    ])])
+  ]);
+  return overview;
+}
+
+function agentCard(role) {
+  const article = el('article', { className: 'agent-card', dataset: { roleId: role.name } }, [
+    el('div', { className: 'agent-card-head' }, [el('div', {}, [el('div', { className: 'agent-symbol', text: '✦' }), el('h2', { className: 'agent-title', text: role.title }), el('span', { className: 'agent-alias', text: role.display_name })]), badge(roleRuntimeLabel(role), roleRuntimeTone(role))]),
+    el('p', { className: 'agent-mission', text: role.mission }),
+    tags(role.capabilities.slice(0, 3)),
+    el('div', { className: 'agent-footer' }, [el('span', { text: role.family }), button('Open profile', 'small ghost', () => { state.agentId = role.name; state.view = 'agent-detail'; location.hash = 'agent-detail'; render(); })])
+  ]);
+  return article;
+}
+
+function renderAgentsLegacy() {
+  const filtered = state.data.roles.filter((role) => {
+    const haystack = [role.name, role.title, role.display_name, role.family, role.mission, ...role.capabilities, ...role.knowledge_domains].join(' ').toLowerCase();
+    return (!state.search || haystack.includes(state.search.toLowerCase())) && (!state.family || role.family === state.family) && (!state.runtime || (state.runtime === 'runtime') === role.runtime);
+  }).sort((a, b) => state.sort === 'title' ? a.title.localeCompare(b.title) : state.sort === 'family' ? a.family.localeCompare(b.family) : a.display_name.localeCompare(b.display_name));
+  const toolbar = el('div', { className: 'toolbar' }, [
+    el('input', { className: 'search-field', type: 'search', placeholder: 'Search names, aliases, families, missions, capabilities…', value: state.search, on: { input: (event) => { state.search = event.target.value; render(); } } }),
+    el('select', { className: 'select-field', value: state.family, on: { change: (event) => { state.family = event.target.value; render(); } } }, [el('option', { value: '', text: 'All families' }), ...Object.keys(state.data.family_counts).sort().map((family) => el('option', { value: family, text: family }))]),
+    el('select', { className: 'select-field', value: state.runtime, on: { change: (event) => { state.runtime = event.target.value; render(); } } }, [el('option', { value: '', text: 'All runtime states' }), el('option', { value: 'runtime', text: 'Typed runtime' }), el('option', { value: 'registry', text: 'Registry only' })]),
+    el('select', { className: 'select-field', value: state.sort, on: { change: (event) => { state.sort = event.target.value; render(); } } }, [el('option', { value: 'title', text: 'Sort: role' }), el('option', { value: 'family', text: 'Sort: family' }), el('option', { value: 'alias', text: 'Sort: codename' })])
+  ]);
+  return el('div', {}, [pageHeading('Agent explorer', 'Find the right specialist.', `${filtered.length} of ${state.data.roles.length} roles match the current view. Every profile exposes capabilities and boundaries before you delegate.`), toolbar, filtered.length ? el('div', { className: 'agent-grid' }, filtered.map(agentCard)) : el('div', { className: 'empty-state' }, [el('h2', { text: 'No roles found' }), el('p', { text: 'Try clearing a filter or searching for a family, alias, or capability.' }), button('Clear filters', 'primary small', () => { state.search = ''; state.family = ''; state.runtime = ''; render(); })])]);
+}
+
+function renderOverview() { return renderExperienceOverview(experienceContext()); }
+function renderAgents() { return renderExperienceAgents(experienceContext()); }
+
+function profileSection(title, content) { return el('section', { className: 'panel profile-section' }, [el('h2', { text: title }), content]); }
+function renderAgentDetail() {
+  const role = roleById(state.agentId) || state.data.roles[0];
+  const main = el('div', {}, [
+    el('div', { className: 'detail-header' }, [el('div', { className: 'agent-symbol', text: '✦' }), el('div', {}, [button('← Back to explorer', 'small ghost', () => setView('agents')), el('h1', { text: role.title }), el('p', { text: role.mission }), el('div', { className: 'detail-badges' }, [badge(role.display_name, 'blue'), badge(roleRuntimeLabel(role), roleRuntimeTone(role)), badge(role.mythology, 'blue')])])]),
+    el('div', { className: 'detail-grid' }, [
+      el('div', {}, [
+        profileSection('Mission and capabilities', el('div', {}, [el('p', { text: role.mission }), tags(role.capabilities)])),
+        profileSection('Required inputs', list(role.required_inputs)),
+        profileSection('Expected outputs', list(role.deliverables)),
+        profileSection('Example tasks', list(role.example_tasks)),
+        profileSection('Developer prompt', el('div', {}, [el('div', { className: 'prompt-actions' }, [button('Copy prompt', 'small primary', () => copyText(role.prompt)), button('Download .txt', 'small ghost', () => downloadText(`${role.name}-prompt.txt`, role.prompt, 'text/plain'))]), el('div', { className: 'prompt-box', text: role.prompt })])),
+        profileSection('Evaluation criteria', list(role.evaluation_criteria))
+      ]),
+      el('aside', {}, [
+        profileSection('Role contract', el('dl', {}, [el('dt', { text: 'Stable ID' }), el('dd', { className: 'mono', text: role.name }), el('dt', { text: 'Family' }), el('dd', { text: role.family }), el('dt', { text: 'Codename' }), el('dd', { text: role.codename }), el('dt', { text: 'Mythology' }), el('dd', { text: role.mythology }), el('dt', { text: 'Version' }), el('dd', { className: 'mono', text: role.maintenance.version }), el('dt', { text: 'Last reviewed' }), el('dd', { text: role.maintenance.last_reviewed })])),
+        profileSection('Tools and integrations', list(role.tools_integrations)),
+        profileSection('Knowledge and standards', el('div', {}, [el('h3', { className: 'subtle', style: { fontSize: '11px' }, text: 'Knowledge domains' }), tags(role.knowledge_domains), el('h3', { className: 'subtle', style: { fontSize: '11px', marginTop: '17px' }, text: 'Frameworks and standards' }), tags(role.frameworks_standards)])),
+        profileSection('Approval and failure handling', el('div', {}, [el('p', { text: role.approval_requirements }), list(role.failure_handling)])),
+        profileSection('Boundaries and limitations', el('div', {}, [list(role.boundaries), list(role.known_limitations)])),
+        profileSection('Runtime compatibility', el('div', {}, [badge(role.runtime_compatibility.mode === 'live' ? 'Live-capable profile' : 'Registry only', roleRuntimeTone(role)), el('p', { text: role.runtime ? 'The current typed delegation surface exposes this role. Concurrency remains bounded by the host session.' : 'This profile is documented and portable, but the current typed runtime does not expose it as a direct delegation role.' })]))
+      ])
+    ])
+  ]);
+  return main;
+}
+
+function promptForRole(role) {
+  const context = state.promptContext.trim();
+  const template = state.promptTemplate === 'Custom role brief' ? '' : `\n\nTask template: ${state.promptTemplate}.`;
+  return `${role.prompt}${template}${context ? `\n\nTask-specific context:\n${context}` : ''}`;
+}
+
+function renderPrompts() {
+  const selected = roleById(state.promptRoleId) || state.data.roles[0];
+  state.promptRoleId = selected.name;
+  const available = state.data.roles.filter((role) => [role.title, role.display_name, role.family].join(' ').toLowerCase().includes(state.promptFilter.toLowerCase()));
+  const roleList = el('div', { className: 'role-list' }, available.map((role) => el('button', { className: `role-list-button ${role.name === selected.name ? 'is-selected' : ''}`, dataset: { roleId: role.name }, type: 'button', on: { click: () => { state.promptRoleId = role.name; render(); restoreFocus(`.role-list-button[data-role-id="${role.name}"]`); } } }, [el('strong', { text: role.display_name }), el('span', { text: role.title })])));
+  const preview = promptForRole(selected);
+   return el('div', {}, [pageHeading('Prompt Studio', 'Make the contract explicit.', 'Preview, adapt, compare, and export role prompts. Previewing a prompt never executes an agent.'), el('div', { className: 'studio-layout' }, [el('aside', { className: 'panel', ariaLabel: 'Prompt library' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Prompt library' }), el('p', { text: `${available.length} roles` })])]), el('input', { className: 'search-field', type: 'search', ariaLabel: 'Filter prompts', placeholder: 'Filter prompts…', value: state.promptFilter, on: { input: (event) => { const value = event.target.value; state.promptFilter = value; render(); restoreFocus('.studio-layout aside .search-field', value); } } }), roleList]), el('section', { className: 'panel studio-main' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: selected.title }), el('p', { className: 'mono', text: `${selected.display_name} · ${selected.maintenance.version}` })]), badge('Preview only', 'amber')]), el('div', { className: 'studio-controls' }, [el('div', { className: 'field-group' }, [el('label', { text: 'Task template', htmlFor: 'prompt-template' }), el('select', { id: 'prompt-template', className: 'select-field', value: state.promptTemplate, on: { change: (event) => { state.promptTemplate = event.target.value; render(); } } }, ['Role brief', 'Audit a proposed change', 'Prepare a handoff', 'Create a test plan', 'Custom role brief'].map((item) => el('option', { value: item, text: item })))]), el('div', { className: 'field-group' }, [el('label', { text: 'Task context', htmlFor: 'prompt-context' }), el('textarea', { id: 'prompt-context', className: 'text-field', rows: 5, placeholder: 'Add bounded task context, file scope, acceptance criteria, and evidence requirements…', value: state.promptContext, on: { input: (event) => { state.promptContext = event.target.value; const previewNode = document.querySelector('#prompt-preview'); if (previewNode) previewNode.textContent = promptForRole(selected); } } })])]), el('div', { className: 'prompt-actions' }, [button('Copy configuration', 'small primary', () => copyText(preview)), button('Export .txt', 'small ghost', () => downloadText(`${selected.name}-prompt-preview.txt`, preview, 'text/plain'))]), el('div', { id: 'prompt-preview', className: 'prompt-box prompt-preview', tabIndex: 0, ariaLabel: 'Prompt preview', text: preview })])])]);
+}
+
+function currentWorkflow() {
+  const template = state.data.workflow_templates.find((item) => item.id === state.workflowId) || state.data.workflow_templates[0];
+  if (!state.workflow || state.workflow.id !== template.id) state.workflow = JSON.parse(JSON.stringify(template));
+  return state.workflow;
+}
+
+function workflowFeasibility(workflow) {
+  const typed = workflow.steps.filter((step) => roleById(step.role)?.runtime).length;
+  return { typed, total: workflow.steps.length, ready: typed === workflow.steps.length };
+}
+
+function renderWorkflows() {
+  const workflow = currentWorkflow();
+  const feasibility = workflowFeasibility(workflow);
+  const templates = el('aside', { className: 'template-list' }, state.data.workflow_templates.map((template) => el('button', { className: `template-button ${template.id === workflow.id ? 'is-selected' : ''}`, type: 'button', on: { click: () => { state.workflowId = template.id; state.workflow = null; render(); } } }, [el('strong', { text: template.name }), el('span', { text: template.description })])));
+  const makeRoleOptions = () => [el('option', { value: '', text: 'Select a role' }), ...state.data.roles.map((role) => el('option', { value: role.name, text: `${role.display_name} · ${role.runtime ? 'typed' : 'registry'}` }))];
+  const steps = workflow.steps.map((step, index) => { const role = roleById(step.role); return el('article', { className: 'workflow-step' }, [el('span', { className: 'step-index', text: `STEP ${String(index + 1).padStart(2, '0')}` }), el('h3', { text: role?.title || 'Unassigned role' }), el('p', { text: role?.display_name || 'Choose a role for this step.' }), el('div', { className: 'step-fields' }, [el('select', { ariaLabel: `Step ${index + 1} role`, value: step.role, on: { change: (event) => { step.role = event.target.value; render(); } } }, makeRoleOptions()), el('input', { type: 'text', value: step.gate, ariaLabel: 'Approval gate', on: { input: (event) => { step.gate = event.target.value; } } }), el('input', { type: 'text', value: step.output, ariaLabel: 'Expected output', on: { input: (event) => { step.output = event.target.value; } } }), button('Remove', 'small danger', () => { workflow.steps.splice(index, 1); render(); })])]); });
+  return el('div', {}, [pageHeading('Workflow designer', 'Compose a bounded path.', 'Design and export workflows with explicit roles, outputs, dependencies, and approval gates. Execution is intentionally unavailable in this static build.'), el('div', { className: 'workflow-layout' }, [templates, el('section', { className: 'workflow-main' }, [el('div', { className: 'workflow-toolbar' }, [el('div', {}, [el('h1', { text: workflow.name }), el('p', { text: workflow.description })]), el('div', { className: 'workflow-actions' }, [badge(feasibility.ready ? 'All steps typed' : `${feasibility.typed}/${feasibility.total} typed`, feasibility.ready ? 'green' : 'amber'), button('Add step', 'small ghost', () => { workflow.steps.push({ role: '', gate: 'Human review', output: 'Documented output' }); render(); }), button('Copy JSON', 'small ghost', () => copyText(JSON.stringify(workflow, null, 2))), button('Export JSON', 'small primary', () => downloadText(`${workflow.id}.json`, JSON.stringify(workflow, null, 2)))])]), el('div', { className: 'workflow-canvas', role: 'region', ariaLabel: 'Workflow canvas' }, [el('h2', { className: 'sr-only', text: 'Workflow steps' }), el('div', { className: 'workflow-rail' }, steps.length ? steps : [el('div', { className: 'empty-state', text: 'Add a step to start designing.' })])]), el('div', { className: 'panel outline-panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Accessible workflow outline' }), el('p', { text: 'The linear view is the authoritative reading order for this design surface.' })]), badge('Design only', 'amber')]), el('div', { className: 'outline-list' }, workflow.steps.map((step, index) => { const role = roleById(step.role); return el('div', { className: 'outline-item' }, [el('span', { className: 'outline-number', text: String(index + 1) }), el('div', {}, [el('strong', { text: role?.title || 'Unassigned role' }), el('span', { text: `${step.gate} → ${step.output}` })]), badge(role?.runtime ? 'typed' : 'registry', role?.runtime ? 'green' : 'amber')]); }))])])])]);
+}
+
+function renderEvaluations() {
+  const checks = [
+    ['Catalog schema', 'All 100 roles, aliases, definitions, and profile fields are statically validated.', 'PASSED', 'green'],
+    ['Prompt contract', 'Every prompt has explicit role identity, outputs, boundaries, and no-execution guardrails.', 'PASSED', 'green'],
+    ['Scenario evaluation', 'Positive, negative, boundary, and missing-evidence fixtures are specified but not executed in this build.', 'PENDING', 'amber'],
+    ['Live runtime evaluation', 'No live provider or agent execution is connected to this static command center.', 'NOT MEASURED', 'amber'],
+    ['Performance score', 'No observed numerator, denominator, time window, or provider run exists to support a score.', 'NOT MEASURED', 'amber'],
+    ['Cross-platform validator', 'The catalog validator resolves its root through fileURLToPath and is designed for Windows and Linux.', 'RETEST REQUIRED', 'blue']
+  ];
+  return el('div', {}, [pageHeading('Evaluation lab', 'Evidence before confidence.', 'Separate schema checks, prompt contracts, offline scenarios, live runtime checks, and empirical performance. Never collapse them into one score.'), el('div', { className: 'eval-grid' }, checks.map(([title, description, status, tone]) => el('article', { className: 'check-card' }, [el('h2', { text: title }), el('p', { text: description }), el('div', { className: 'check-status' }, [el('span', { text: 'Recorded state' }), badge(status, tone)])]))), el('section', { className: 'panel', style: { marginTop: '17px' } }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Evaluation policy' }), el('p', { text: state.data.evaluation_policy.performance_scores })])]), el('div', { className: 'callout' }, [el('strong', { text: 'Interpretation rule: ' }), 'a passing catalog check means the artifact is structurally consistent. It does not prove professional competence, production reliability, legal compliance, or successful agent execution.'])])]);
+}
+
+function renderGovernance() {
+  const sources = state.data.sources.map((source) => {
+    const href = safeSourceUrl(source.url);
+    return href
+      ? el('a', { className: 'source-link', href, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: source.title }), el('strong', { text: '↗' })])
+      : el('div', { className: 'source-link' }, [el('span', { text: source.title + ' · blocked URL' }), badge('Untrusted', 'amber')]);
+  });
+  return el('div', {}, [
+    pageHeading('Governance', 'Keep autonomy bounded.', 'The command center makes human ownership, legal caveats, prompt boundaries, and runtime truth visible at the point of use.'),
+    el('div', { className: 'governance-grid' }, [
+      el('article', { className: 'check-card' }, [el('h2', { text: 'Runtime status' }), el('p', { text: 'Typed runtime roles and registry-only profiles are separate catalog states. A profile file is not an execution heartbeat or an authorization grant.' }), badge('Truthful by design', 'green')]),
+      el('article', { className: 'check-card' }, [el('h2', { text: 'Human approval' }), el('p', { text: 'HR, legal, privacy, security, governance, and consequential risk workflows require qualified human review before reliance or external action.' }), badge('Required', 'amber')]),
+      el('article', { className: 'check-card' }, [el('h2', { text: 'Prompt safety' }), el('p', { text: 'Prompts are contracts and documentation. They are not permission boundaries. The parent session still controls tools, connectors, sandboxing, and approvals.' }), badge('Guardrail', 'blue')])
+    ]),
+    el('div', { className: 'dashboard-grid', style: { marginTop: '17px' } }, [
+      el('section', { className: 'panel' }, [
+        el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Governance principles' }), el('p', { text: 'Apply these before promoting or delegating a role.' })])]),
+        list(['Evidence first: label observed, configured, simulated, and missing states.', 'Least authority: define the smallest task and write scope that can satisfy the outcome.', 'Human accountability: retain an owner for risk acceptance, legal conclusions, employment decisions, and external actions.', 'No hidden execution: preview and export surfaces never execute agents or workflows.', 'No invented telemetry: performance and success rates appear only when persisted measurements exist.'])
+      ]),
+      el('section', { className: 'panel' }, [
+        el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Authoritative references' }), el('p', { text: 'External sources for role contracts and governance research.' })])]),
+        el('div', { className: 'source-list' }, sources)
+      ])
+    ]),
+    el('div', { className: 'callout', style: { marginTop: '17px' } }, [el('strong', { text: 'Legal notice: ' }), 'the EU AI Act Specialist, Legal Counsel, DPO, HR, and related roles provide structured research assistance. They are not licensed counsel, a regulator, an auditor, or a substitute for accountable decision-makers.'])
+  ]);
+}
+
+function render() {
+  if (!state.data) return;
+  updateNav();
+  if (state.view === 'overview') app.replaceChildren(renderOverview());
+  else if (state.view === 'agents') app.replaceChildren(renderAgents());
+  else if (state.view === 'agent-detail') app.replaceChildren(renderAgentDetail());
+  else if (state.view === 'prompts') app.replaceChildren(renderPrompts());
+  else if (state.view === 'workflows') app.replaceChildren(renderWorkflows());
+  else if (state.view === 'evaluations') app.replaceChildren(renderEvaluations());
+  else if (state.view === 'governance') app.replaceChildren(renderGovernance());
+}
+
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  localStorage.setItem('agent-factory-theme', state.theme);
+  const themeToggle = document.querySelector('#theme-toggle');
+  themeToggle?.setAttribute('aria-label', state.theme === 'dark' ? 'Toggle light theme' : 'Toggle dark theme');
+  themeToggle?.setAttribute('aria-pressed', String(state.theme === 'light'));
+}
+
+function initializeExperiencePicker() {
+  const selector = document.querySelector('#experience-select');
+  if (!selector) return;
+  selector.replaceChildren(...EXPERIENCES.map((experience) => el('option', { value: experience.id, text: `${experience.mark} ${experience.name}` })));
+  selector.addEventListener('change', (event) => setExperience(event.target.value));
+}
+
+document.querySelectorAll('.nav-item').forEach((item) => item.addEventListener('click', () => setView(item.dataset.view)));
+document.querySelector('#mobile-menu').addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('is-open')));
+document.querySelector('#sidebar-toggle').addEventListener('click', () => { const collapsed = sidebar.classList.toggle('is-collapsed'); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', String(!collapsed)); });
+document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; applyTheme(); });
+document.querySelector('#global-search').addEventListener('input', (event) => { const value = event.target.value; state.search = value; if (state.view !== 'agents') state.view = 'agents'; location.hash = 'agents'; render(); restoreFocus('#global-search', value); });
+document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search').focus(); } if (event.key === 'Escape' && sidebar.classList.contains('is-open')) { setSidebarOpen(false); document.querySelector('#mobile-menu')?.focus(); } });
+window.addEventListener('hashchange', () => { const requested = location.hash.slice(1) || 'overview'; const next = validViews.has(requested) ? requested : 'overview'; state.view = next; if (requested !== next) history.replaceState({}, '', '#overview'); render(); });
+
+initializeExperiencePicker();
+applyTheme();
+applyExperience();
+setSidebarOpen(false);
+window.matchMedia('(max-width: 780px)').addEventListener?.('change', () => setSidebarOpen(false));
+fetch('../catalog/roles.json', { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); state.graph = buildCapabilityGraph(state.data); render(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });

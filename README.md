@@ -1,5 +1,7 @@
 # Agent Factory
 
+[Live dashboard](https://agent-factory-multiverse.jeevansiddhabhaktula.chatgpt.site) · [GitHub repository](https://github.com/Jeevan-0508/agent-factory) · [Dashboard source](https://github.com/Jeevan-0508/agent-factory/tree/codex/god-mode-v2/dashboard) · [Draft Multiverse V2 pull request](https://github.com/Jeevan-0508/agent-factory/pull/1)
+
 Agent Factory is a versioned, evidence-constrained catalog of 100 specialist Codex roles. Every role has:
 
 - a stable machine ID;
@@ -16,14 +18,37 @@ The repository is a source of truth for role design and documentation. It does n
 
 ## Contents
 
-- `dashboard/index.html` — static searchable dashboard.
+- `dashboard/index.html` — responsive multiverse shell with a global experience switcher.
+- `dashboard/app.js` / `dashboard/styles.css` / `dashboard/experiences.js` — eight distinct local-first experiences over the shared explorer, profiles, Prompt Studio, workflow designer, evaluation lab, and governance views.
 - `catalog/roles.json` — machine-readable catalog and mythic aliases.
 - `agents/` — portable TOML definitions for all 100 roles.
 - `runtime/approved/` — the 30 currently approved runtime profiles.
 - `docs/role-catalog.md` — detailed role reference.
 - `docs/prompt-library.md` — complete reusable prompt library.
 - `docs/governance.md` — promotion, safety, legal, and privacy boundaries.
+- `docs/release-readiness-v3.md` — God Loop V3 QA evidence, visual matrix, findings, and release gates.
 - `scripts/validate-catalog.mjs` — deterministic catalog validation.
+- `scripts/test-catalog.mjs` — regression checks for catalog, profile, workflow, dashboard, and cross-platform behavior.
+
+The multiverse experiences are Command Center, Minimal Studio, Cyberpunk Neon, Glass Universe, Agent Galaxy, Mythology Atlas, Retro Terminal, and Neo-Brutalist Lab. They share the same catalog and application state; the selected experience is persisted locally and switching does not reset the active search, role, prompt, or workflow draft.
+
+## Local preview
+
+The command center is a static artifact: it reads `catalog/roles.json` and does not execute agents, call providers, or report live telemetry. Serve the repository root with any local static server, then open `/dashboard/`.
+
+The generator refreshes catalog and documentation artifacts without replacing the polished command center. The dashboard is maintained as a separate checked-in artifact so catalog regeneration cannot overwrite its security-conscious DOM implementation.
+
+## Verification
+
+```text
+npm test
+npm run validate
+node --check dashboard/app.js
+npm run test:security
+npm run test:e2e
+```
+
+Continuous integration runs catalog, build, security, and browser checks on Ubuntu and Windows; Windows also runs the committed visual matrix.
 
 ## Naming convention
 
