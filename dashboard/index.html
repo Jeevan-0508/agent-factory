@@ -12,7 +12,7 @@
       <aside class="sidebar" id="sidebar">
         <div class="brand-row">
           <a class="brand" href="#overview" aria-label="Agent Factory home"><span class="brand-mark" aria-hidden="true">✦</span><span>Agent Factory</span></a>
-          <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Collapse navigation">‹</button>
+          <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Collapse navigation" aria-controls="sidebar" aria-expanded="true">‹</button>
         </div>
         <div class="sidebar-caption">Autonomous product engineering</div>
         <nav class="main-nav" aria-label="Main navigation">
@@ -24,10 +24,10 @@
           <button class="nav-item" type="button" data-view="governance"><span aria-hidden="true">▣</span><span>Governance</span></button>
         </nav>
         <div class="sidebar-health panel-dark">
-          <div class="health-heading"><span class="status-dot is-green"></span><strong>System health</strong><span class="health-label">LOCAL</span></div>
-          <div class="health-line"><span>Catalog integrity</span><strong>100/100</strong></div>
+          <div class="health-heading"><span class="status-dot is-green"></span><strong>Catalog snapshot</strong><span class="health-label">LOCAL</span></div>
+          <div class="health-line"><span>Recorded checks</span><strong>100/100</strong></div>
           <div class="meter"><span style="width:100%"></span></div>
-          <div class="health-line"><span>Runtime compatibility</span><strong>30/100</strong></div>
+          <div class="health-line"><span>Catalog compatibility</span><strong>30/100</strong></div>
           <div class="meter meter-amber"><span style="width:30%"></span></div>
           <p class="sidebar-note">No live telemetry is claimed. Runtime status comes from the versioned catalog.</p>
         </div>
@@ -36,9 +36,10 @@
 
       <main class="main-content">
         <header class="topbar">
-          <button class="icon-button mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation">☰</button>
+          <button class="icon-button mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
           <div class="breadcrumbs"><span>Agent Factory</span><span aria-hidden="true">/</span><strong id="page-label">Overview</strong></div>
           <label class="global-search"><span aria-hidden="true">⌕</span><input id="global-search" type="search" placeholder="Search agents, runs, or documentation…" autocomplete="off"><kbd>⌘ K</kbd></label>
+          <label class="experience-picker"><span>Experience</span><select id="experience-select" aria-label="Choose visual experience"></select></label>
           <button class="icon-button" id="theme-toggle" type="button" aria-label="Toggle light theme">☼</button>
           <div class="operator"><span class="avatar avatar-purple">AF</span><div><strong>Agent Factory</strong><span>Principal workspace</span></div></div>
         </header>

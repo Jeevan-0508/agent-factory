@@ -1,7 +1,10 @@
+import { EXPERIENCES, buildCapabilityGraph, experienceById, renderExperienceAgents, renderExperienceOverview } from './experiences.js';
+
 const app = document.querySelector('#app');
 const toast = document.querySelector('#toast');
 const sidebar = document.querySelector('#sidebar');
 const pageLabel = document.querySelector('#page-label');
+const SVG_TAGS = new Set(['svg', 'g', 'circle', 'line', 'rect', 'title']);
 
 const state = {
   data: null,
@@ -17,17 +20,21 @@ const state = {
   promptContext: '',
   workflowId: null,
   workflow: null,
-  theme: localStorage.getItem('agent-factory-theme') || 'dark'
+  theme: localStorage.getItem('agent-factory-theme') || 'dark',
+  experience: localStorage.getItem('agent-factory-experience') || 'command-center',
+  graph: null
 };
 
 const viewLabels = {
   overview: 'Overview', agents: 'Agent explorer', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', evaluations: 'Evaluation lab', governance: 'Governance'
 };
+const validViews = new Set(Object.keys(viewLabels));
+if (!validViews.has(state.view)) state.view = 'overview';
 
 function el(tag, options = {}, children = []) {
-  const node = document.createElement(tag);
+  const node = SVG_TAGS.has(tag) ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
   for (const [key, value] of Object.entries(options)) {
-    if (key === 'className') node.className = value;
+    if (key === 'className') node.setAttribute('class', value);
     else if (key === 'text') node.textContent = value;
     else if (key === 'on') for (const [event, handler] of Object.entries(value)) node.addEventListener(event, handler);
     else if (key === 'dataset') Object.assign(node.dataset, value);
@@ -37,6 +44,7 @@ function el(tag, options = {}, children = []) {
     else if (key === 'selected') node.selected = value;
     else if (key === 'ariaLabel' && value) node.setAttribute('aria-label', value);
     else if (key === 'ariaCurrent') node.setAttribute('aria-current', value);
+    else if (key === 'htmlFor') node.setAttribute('for', value);
     else if (key === 'disabled') node.disabled = value;
     else if (key === 'href') node.href = value;
     else if (key === 'target') node.target = value;
@@ -97,13 +105,33 @@ function normalizeCatalog(data) {
   return { ...data, family_counts };
 }
 
+function applyExperience() {
+  const experience = experienceById(state.experience);
+  state.experience = experience.id;
+  document.documentElement.dataset.experience = experience.id;
+  const selector = document.querySelector('#experience-select');
+  if (selector) selector.value = experience.id;
+  localStorage.setItem('agent-factory-experience', experience.id);
+}
+
+function setExperience(experience) {
+  state.experience = experience;
+  applyExperience();
+  render();
+}
+
 function setView(view, replace = false) {
   state.view = view;
   state.agentId = null;
   if (replace) history.replaceState({}, '', `#${view}`); else location.hash = view;
   render();
-  sidebar.classList.remove('is-open');
+  setSidebarOpen(false);
   app.focus({ preventScroll: true });
+}
+
+function setSidebarOpen(open) {
+  sidebar.classList.toggle('is-open', open);
+  document.querySelector('#mobile-menu')?.setAttribute('aria-expanded', String(open));
 }
 
 function updateNav() {
@@ -116,6 +144,48 @@ function updateNav() {
   pageLabel.textContent = viewLabels[state.view] || 'Overview';
   document.querySelector('#nav-agent-count').textContent = state.data?.roles.length ?? '—';
   document.querySelector('#nav-workflow-count').textContent = state.data?.workflow_templates.length ?? '—';
+}
+
+function openRole(roleId) {
+  state.agentId = roleId;
+  state.view = 'agent-detail';
+  location.hash = 'agent-detail';
+  render();
+}
+
+function setSearch(value) {
+  state.search = value;
+}
+
+function safeSourceUrl(value) {
+  try {
+    const url = new URL(value);
+    const allowedHosts = new Set(['eur-lex.europa.eu', 'digital-strategy.ec.europa.eu', 'www.nist.gov']);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !allowedHosts.has(url.hostname)) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function filteredRoles() {
+  return state.data.roles.filter((role) => {
+    const haystack = [role.name, role.title, role.display_name, role.family, role.mission, ...role.capabilities, ...role.knowledge_domains].join(' ').toLowerCase();
+    return (!state.search || haystack.includes(state.search.toLowerCase())) && (!state.family || role.family === state.family) && (!state.runtime || (state.runtime === 'runtime') === role.runtime);
+  }).sort((a, b) => state.sort === 'title' ? a.title.localeCompare(b.title) : state.sort === 'family' ? a.family.localeCompare(b.family) : a.display_name.localeCompare(b.display_name));
+}
+
+function agentToolbar() {
+  return el('div', { className: 'toolbar' }, [
+    el('input', { className: 'search-field', type: 'search', placeholder: 'Search names, aliases, families, missions, capabilities…', value: state.search, on: { input: (event) => { state.search = event.target.value; render(); } } }),
+    el('select', { className: 'select-field', value: state.family, on: { change: (event) => { state.family = event.target.value; render(); } } }, [el('option', { value: '', text: 'All families' }), ...Object.keys(state.data.family_counts).sort().map((family) => el('option', { value: family, text: family }))]),
+    el('select', { className: 'select-field', value: state.runtime, on: { change: (event) => { state.runtime = event.target.value; render(); } } }, [el('option', { value: '', text: 'All runtime states' }), el('option', { value: 'runtime', text: 'Typed runtime' }), el('option', { value: 'registry', text: 'Registry only' })]),
+    el('select', { className: 'select-field', value: state.sort, on: { change: (event) => { state.sort = event.target.value; render(); } } }, [el('option', { value: 'title', text: 'Sort: role' }), el('option', { value: 'family', text: 'Sort: family' }), el('option', { value: 'alias', text: 'Sort: codename' })])
+  ]);
+}
+
+function experienceContext() {
+  return { el, button, badge, tags, list, metricCard, setView, openRole, setSearch, roleById, data: state.data, state, graph: state.graph, filteredRoles, agentToolbar, agentCard, applyExperience, render };
 }
 
 function pageHeading(eyebrow, title, description, actions = []) {
@@ -133,7 +203,7 @@ function metricCard(label, value, foot, icon = '◈') {
   ]);
 }
 
-function renderOverview() {
+function renderOverviewLegacy() {
   const roles = state.data.roles;
   const families = Object.entries(state.data.family_counts).sort((a, b) => b[1] - a[1]);
   const maxFamily = Math.max(...families.map(([, count]) => count));
@@ -175,7 +245,7 @@ function agentCard(role) {
   return article;
 }
 
-function renderAgents() {
+function renderAgentsLegacy() {
   const filtered = state.data.roles.filter((role) => {
     const haystack = [role.name, role.title, role.display_name, role.family, role.mission, ...role.capabilities, ...role.knowledge_domains].join(' ').toLowerCase();
     return (!state.search || haystack.includes(state.search.toLowerCase())) && (!state.family || role.family === state.family) && (!state.runtime || (state.runtime === 'runtime') === role.runtime);
@@ -188,6 +258,9 @@ function renderAgents() {
   ]);
   return el('div', {}, [pageHeading('Agent explorer', 'Find the right specialist.', `${filtered.length} of ${state.data.roles.length} roles match the current view. Every profile exposes capabilities and boundaries before you delegate.`), toolbar, filtered.length ? el('div', { className: 'agent-grid' }, filtered.map(agentCard)) : el('div', { className: 'empty-state' }, [el('h2', { text: 'No roles found' }), el('p', { text: 'Try clearing a filter or searching for a family, alias, or capability.' }), button('Clear filters', 'primary small', () => { state.search = ''; state.family = ''; state.runtime = ''; render(); })])]);
 }
+
+function renderOverview() { return renderExperienceOverview(experienceContext()); }
+function renderAgents() { return renderExperienceAgents(experienceContext()); }
 
 function profileSection(title, content) { return el('section', { className: 'panel profile-section' }, [el('h2', { text: title }), content]); }
 function renderAgentDetail() {
@@ -264,11 +337,31 @@ function renderEvaluations() {
 }
 
 function renderGovernance() {
-  return el('div', {}, [pageHeading('Governance', 'Keep autonomy bounded.', 'The command center makes human ownership, legal caveats, prompt boundaries, and runtime truth visible at the point of use.'), el('div', { className: 'governance-grid' }, [
-    el('article', { className: 'check-card' }, [el('h2', { text: 'Runtime status' }), el('p', { text: 'Typed runtime roles and registry-only profiles are separate catalog states. A profile file is not an execution heartbeat or an authorization grant.' }), badge('Truthful by design', 'green')]),
-    el('article', { className: 'check-card' }, [el('h2', { text: 'Human approval' }), el('p', { text: 'HR, legal, privacy, security, governance, and consequential risk workflows require qualified human review before reliance or external action.' }), badge('Required', 'amber')]),
-    el('article', { className: 'check-card' }, [el('h2', { text: 'Prompt safety' }), el('p', { text: 'Prompts are contracts and documentation. They are not permission boundaries. The parent session still controls tools, connectors, sandboxing, and approvals.' }), badge('Guardrail', 'blue')])
-  ]), el('div', { className: 'dashboard-grid', style: { marginTop: '17px' } }, [el('section', { className: 'panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Governance principles' }), el('p', { text: 'Apply these before promoting or delegating a role.' })])]), list(['Evidence first: label observed, configured, simulated, and missing states.', 'Least authority: define the smallest task and write scope that can satisfy the outcome.', 'Human accountability: retain an owner for risk acceptance, legal conclusions, employment decisions, and external actions.', 'No hidden execution: preview and export surfaces never execute agents or workflows.', 'No invented telemetry: performance and success rates appear only when persisted measurements exist.'])]), el('section', { className: 'panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Authoritative references' }), el('p', { text: 'External sources for role contracts and governance research.' })])]), el('div', { className: 'source-list' }, state.data.sources.map((source) => el('a', { className: 'source-link', href: source.url, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: source.title }), el('strong', { text: '↗' })])))])]), el('div', { className: 'callout', style: { marginTop: '17px' } }, [el('strong', { text: 'Legal notice: ' }), 'the EU AI Act Specialist, Legal Counsel, DPO, HR, and related roles provide structured research assistance. They are not licensed counsel, a regulator, an auditor, or a substitute for accountable decision-makers.'])]);
+  const sources = state.data.sources.map((source) => {
+    const href = safeSourceUrl(source.url);
+    return href
+      ? el('a', { className: 'source-link', href, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: source.title }), el('strong', { text: '↗' })])
+      : el('div', { className: 'source-link' }, [el('span', { text: source.title + ' · blocked URL' }), badge('Untrusted', 'amber')]);
+  });
+  return el('div', {}, [
+    pageHeading('Governance', 'Keep autonomy bounded.', 'The command center makes human ownership, legal caveats, prompt boundaries, and runtime truth visible at the point of use.'),
+    el('div', { className: 'governance-grid' }, [
+      el('article', { className: 'check-card' }, [el('h2', { text: 'Runtime status' }), el('p', { text: 'Typed runtime roles and registry-only profiles are separate catalog states. A profile file is not an execution heartbeat or an authorization grant.' }), badge('Truthful by design', 'green')]),
+      el('article', { className: 'check-card' }, [el('h2', { text: 'Human approval' }), el('p', { text: 'HR, legal, privacy, security, governance, and consequential risk workflows require qualified human review before reliance or external action.' }), badge('Required', 'amber')]),
+      el('article', { className: 'check-card' }, [el('h2', { text: 'Prompt safety' }), el('p', { text: 'Prompts are contracts and documentation. They are not permission boundaries. The parent session still controls tools, connectors, sandboxing, and approvals.' }), badge('Guardrail', 'blue')])
+    ]),
+    el('div', { className: 'dashboard-grid', style: { marginTop: '17px' } }, [
+      el('section', { className: 'panel' }, [
+        el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Governance principles' }), el('p', { text: 'Apply these before promoting or delegating a role.' })])]),
+        list(['Evidence first: label observed, configured, simulated, and missing states.', 'Least authority: define the smallest task and write scope that can satisfy the outcome.', 'Human accountability: retain an owner for risk acceptance, legal conclusions, employment decisions, and external actions.', 'No hidden execution: preview and export surfaces never execute agents or workflows.', 'No invented telemetry: performance and success rates appear only when persisted measurements exist.'])
+      ]),
+      el('section', { className: 'panel' }, [
+        el('div', { className: 'panel-header' }, [el('div', {}, [el('h2', { text: 'Authoritative references' }), el('p', { text: 'External sources for role contracts and governance research.' })])]),
+        el('div', { className: 'source-list' }, sources)
+      ])
+    ]),
+    el('div', { className: 'callout', style: { marginTop: '17px' } }, [el('strong', { text: 'Legal notice: ' }), 'the EU AI Act Specialist, Legal Counsel, DPO, HR, and related roles provide structured research assistance. They are not licensed counsel, a regulator, an auditor, or a substitute for accountable decision-makers.'])
+  ]);
 }
 
 function render() {
@@ -288,13 +381,22 @@ function applyTheme() {
   localStorage.setItem('agent-factory-theme', state.theme);
 }
 
+function initializeExperiencePicker() {
+  const selector = document.querySelector('#experience-select');
+  if (!selector) return;
+  selector.replaceChildren(...EXPERIENCES.map((experience) => el('option', { value: experience.id, text: `${experience.mark} ${experience.name}` })));
+  selector.addEventListener('change', (event) => setExperience(event.target.value));
+}
+
 document.querySelectorAll('.nav-item').forEach((item) => item.addEventListener('click', () => setView(item.dataset.view)));
-document.querySelector('#mobile-menu').addEventListener('click', () => sidebar.classList.toggle('is-open'));
-document.querySelector('#sidebar-toggle').addEventListener('click', () => sidebar.classList.toggle('is-collapsed'));
+document.querySelector('#mobile-menu').addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('is-open')));
+document.querySelector('#sidebar-toggle').addEventListener('click', () => { const collapsed = sidebar.classList.toggle('is-collapsed'); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', String(!collapsed)); });
 document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; applyTheme(); });
 document.querySelector('#global-search').addEventListener('input', (event) => { state.search = event.target.value; if (state.view !== 'agents') state.view = 'agents'; location.hash = 'agents'; render(); });
-document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search').focus(); } });
-window.addEventListener('hashchange', () => { const next = location.hash.slice(1) || 'overview'; state.view = next; render(); });
+document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search').focus(); } if (event.key === 'Escape' && sidebar.classList.contains('is-open')) setSidebarOpen(false); });
+window.addEventListener('hashchange', () => { const requested = location.hash.slice(1) || 'overview'; const next = validViews.has(requested) ? requested : 'overview'; state.view = next; if (requested !== next) history.replaceState({}, '', '#overview'); render(); });
 
+initializeExperiencePicker();
 applyTheme();
-fetch('../catalog/roles.json', { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); render(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });
+applyExperience();
+fetch('../catalog/roles.json', { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); state.graph = buildCapabilityGraph(state.data); render(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });

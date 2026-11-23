@@ -16,8 +16,8 @@ The repository is a source of truth for role design and documentation. It does n
 
 ## Contents
 
-- `dashboard/index.html` — responsive command center shell.
-- `dashboard/app.js` / `dashboard/styles.css` — local-first explorer, profiles, Prompt Studio, workflow designer, evaluation lab, and governance views.
+- `dashboard/index.html` — responsive multiverse shell with a global experience switcher.
+- `dashboard/app.js` / `dashboard/styles.css` / `dashboard/experiences.js` — eight distinct local-first experiences over the shared explorer, profiles, Prompt Studio, workflow designer, evaluation lab, and governance views.
 - `catalog/roles.json` — machine-readable catalog and mythic aliases.
 - `agents/` — portable TOML definitions for all 100 roles.
 - `runtime/approved/` — the 30 currently approved runtime profiles.
@@ -26,6 +26,8 @@ The repository is a source of truth for role design and documentation. It does n
 - `docs/governance.md` — promotion, safety, legal, and privacy boundaries.
 - `scripts/validate-catalog.mjs` — deterministic catalog validation.
 - `scripts/test-catalog.mjs` — regression checks for catalog, profile, workflow, dashboard, and cross-platform behavior.
+
+The multiverse experiences are Command Center, Minimal Studio, Cyberpunk Neon, Glass Universe, Agent Galaxy, Mythology Atlas, Retro Terminal, and Neo-Brutalist Lab. They share the same catalog and application state; the selected experience is persisted locally and switching does not reset the active search, role, prompt, or workflow draft.
 
 ## Local preview
 

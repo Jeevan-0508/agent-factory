@@ -2,6 +2,21 @@
 
 The dashboard is a local-first static interface for the 100-role registry. It is intentionally a documentation and design surface, not an agent executor.
 
+## Multiverse experiences
+
+The global selector changes presentation without changing the underlying catalog or route state:
+
+- **Command Center** — cinematic operations overview with evidence and governance panels.
+- **Minimal Studio** — editorial, search-first index for deliberate role selection.
+- **Cyberpunk Neon** — operator console with explicit static-snapshot status labels.
+- **Glass Universe** — layered observatory where families become visual worlds.
+- **Agent Galaxy** — deterministic SVG constellation with catalog-backed relationships.
+- **Mythology Atlas** — encyclopedia grouped by mythology with professional role titles first.
+- **Retro Terminal** — keyboard-first search shell mapped to real local actions.
+- **Neo-Brutalist Lab** — bold comparison board for role contracts and boundaries.
+
+These are separate compositions and interaction grammars, not palette swaps. The shared navigation remains available in every mode so profiles, prompts, workflows, evaluation evidence, and governance documentation stay reachable.
+
 ## Views
 
 - **Overview** shows catalog counts, role families, workflow templates, and the verification ledger.
@@ -17,6 +32,10 @@ The dashboard is a local-first static interface for the 100-role registry. It is
 `runtime: true` means the role is represented in the current approved typed-runtime surface. `runtime: false` means registry-only: it is documented but not exposed as a typed delegation role. Neither state is a heartbeat, permission grant, provider connection, or performance result.
 
 The interface creates no fabricated run counts, success rates, latency, uptime, or model-quality scores. Where empirical evidence is absent, the UI says so.
+
+### Agent Galaxy relationship model
+
+The Galaxy derives edges only from exact catalog facts: shared capability strings or co-occurrence in an explicit workflow template. It does not infer similarity, dependency, substitution, competence, or performance. The graph has a full accessible agent directory fallback for keyboard and assistive-technology users.
 
 ## Safe extension points
 
