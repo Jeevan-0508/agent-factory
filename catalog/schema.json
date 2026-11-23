@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Factory catalog",
+  "type": "object",
+  "required": ["name", "version", "total_roles", "runtime_supported_roles", "registry_only_roles", "roles"],
+  "properties": {
+    "name": { "const": "agent-factory" },
+    "version": { "type": "string" },
+    "total_roles": { "const": 100 },
+    "runtime_supported_roles": { "type": "array", "items": { "type": "string" } },
+    "registry_only_roles": { "type": "array", "items": { "type": "string" } },
+    "roles": {
+      "type": "array",
+      "minItems": 100,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["name", "title", "family", "mission", "codename", "mythology", "capabilities", "deliverables", "boundaries", "prompt", "runtime"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "codename": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "runtime": { "type": "boolean" },
+          "capabilities": { "type": "array", "minItems": 2 },
+          "deliverables": { "type": "array", "minItems": 2 },
+          "boundaries": { "type": "array", "minItems": 2 },
+          "prompt": { "type": "string", "minLength": 200 }
+        }
+      }
+    }
+  }
+}
