@@ -1,4 +1,4 @@
-import { HttpError, id, now, sleep } from './util.mjs';
+import { HttpError, id, now, sleep, throwIfAborted } from './util.mjs';
 import { publicRole } from './catalog.mjs';
 
 const tools = [
@@ -13,7 +13,8 @@ const tools = [
 export const listTools = () => tools.map((tool) => ({ ...tool }));
 export const getTool = (toolId) => tools.find((tool) => tool.id === toolId) || null;
 
-export async function invokeTool({ db, catalog, toolId, input, allowedTools, workspaceId, taskId = null, workflowRunId = null }) {
+export async function invokeTool({ db, catalog, toolId, input, allowedTools, workspaceId, taskId = null, workflowRunId = null, signal = null }) {
+  throwIfAborted(signal);
   if (!allowedTools.includes(toolId)) throw new HttpError(403, `Tool ${toolId} is not authorized`, 'tool_not_authorized');
   const definition = getTool(toolId);
   if (!definition) throw new HttpError(404, `Unknown tool ${toolId}`, 'unknown_tool');
@@ -21,16 +22,27 @@ export async function invokeTool({ db, catalog, toolId, input, allowedTools, wor
   db.prepare(`INSERT INTO tool_invocations(id, workspace_id, task_id, workflow_run_id, tool_id, status, input_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(invocationId, workspaceId, taskId, workflowRunId, toolId, 'RUNNING', JSON.stringify(input || {}), now());
   try {
-    const output = await Promise.race([executeTool(toolId, input || {}, catalog), sleep(definition.timeoutMs).then(() => { throw new HttpError(504, `Tool ${toolId} timed out`, 'tool_timeout'); })]);
+    const simulatedDelay = Math.min(5_000, Math.max(0, Number(input?.simulated_tool_delay_ms || 0)));
+    const toolController = new AbortController();
+    const abortFromParent = () => toolController.abort();
+    signal?.addEventListener('abort', abortFromParent, { once: true });
+    let timeout;
+    const operation = (async () => { if (simulatedDelay) await sleep(simulatedDelay, toolController.signal); return executeTool(toolId, input || {}, catalog, toolController.signal); })();
+    const timeoutPromise = new Promise((_, reject) => { timeout = setTimeout(() => { toolController.abort(); reject(new HttpError(504, `Tool ${toolId} timed out`, 'tool_timeout')); }, definition.timeoutMs); });
+    let output;
+    try { output = await Promise.race([operation, timeoutPromise]); } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abortFromParent); }
+    throwIfAborted(signal);
     db.prepare('UPDATE tool_invocations SET status = ?, output_json = ?, completed_at = ? WHERE id = ?').run('COMPLETED', JSON.stringify(output), now(), invocationId);
     return { invocationId, toolId, output, evidence: { method: 'local-tool', toolId, invocationId } };
   } catch (error) {
-    db.prepare('UPDATE tool_invocations SET status = ?, error_message = ?, completed_at = ? WHERE id = ?').run('FAILED', error.message, now(), invocationId);
+    const status = error.code === 'cancelled' ? 'CANCELLED' : error.code === 'tool_timeout' ? 'TIMED_OUT' : 'FAILED';
+    db.prepare('UPDATE tool_invocations SET status = ?, error_message = ?, completed_at = ? WHERE id = ?').run(status, error.message, now(), invocationId);
     throw error;
   }
 }
 
-async function executeTool(toolId, input, catalog) {
+async function executeTool(toolId, input, catalog, signal) {
+  throwIfAborted(signal);
   if (toolId === 'catalog.lookup') {
     const role = catalog.roles.get(input.role_id);
     if (!role) throw new HttpError(404, 'Role not found', 'role_not_found');

@@ -1,6 +1,6 @@
 # Runtime API
 
-The runtime API is local-first and session-authenticated. Start it with `npm run start:local`; it listens on `127.0.0.1:8787` by default. `GET /api/v1/health` is the only unauthenticated health route. `GET /api/v1/session` establishes an HttpOnly, SameSite session cookie for the local operator.
+The runtime API is local-first and session-authenticated. Start it with `npm run start:local`; it listens on `127.0.0.1:8787` by default. `GET /api/v1/health` is the only unauthenticated health route. `GET /api/v1/session` establishes an eight-hour HttpOnly, SameSite loopback session cookie for the single local operator. This is not production identity verification.
 
 ## Core routes
 
@@ -24,6 +24,6 @@ The runtime API is local-first and session-authenticated. Start it with `npm run
 | `POST /api/v1/workflow-runs/:id/execute` | Start a bounded run. |
 | `POST /api/v1/workflow-runs/:id/resume` | Resume a recovered run. |
 | `GET /api/v1/workflow-runs/:id/events` | Read audit events and structured handoffs. |
-| `POST /api/v1/scenarios/run` | Create, approve, and start one named offline scenario. |
+| `POST /api/v1/scenarios/run` | Create, automatically approve, and start one named offline demonstration using a server-controlled policy; it is not human authorization. |
 
-Every execution plan includes actor, workspace, agent, requested capabilities, allowed tools, data scope, time limit, budget limit, approval policy, explicit grants, execution mode, and a SHA-256 plan hash. Plan hashes are checked at approval and execution boundaries.
+Every execution plan includes actor, workspace, agent, requested capabilities, allowed tools, data scope, time limit, budget limit, approval policy, server-controlled grants, execution mode, and a SHA-256 plan hash. Client requests cannot provide `explicit_grants`; plans, persisted grants, authorization records, revocation state, and approval mode are rechecked immediately before execution.

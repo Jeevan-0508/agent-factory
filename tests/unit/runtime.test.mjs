@@ -27,14 +27,16 @@ test('SQLite migrations create the durable schema and deterministic runtime pers
   closeDatabase(db);
 });
 
-test('registry-only roles are denied unless an explicit grant is present', () => {
+test('client-controlled grants are denied and only a trusted scenario resolver can authorize registry-only roles', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-factory-auth-'));
   const db = openDatabase(path.join(directory, 'runtime.sqlite'), path.join(root, 'server/migrations'));
   const { catalog, roles } = loadCatalog(root);
   const workspaceId = ensureWorkspace(db);
   const runtime = createRuntime({ db, catalog: { catalog, roles }, killSwitch: () => false });
   assert.throws(() => runtime.createTask({ actorId: 'test-operator', workspaceId, agentId: 'risk_analyst', input: {}, allowedTools: ['risk.score'] }), (error) => error.code === 'registry_only_denied');
-  const granted = runtime.createTask({ actorId: 'test-operator', workspaceId, agentId: 'risk_analyst', input: { risk: { likelihood: 3, impact: 4, control_effectiveness: 0.5 } }, allowedTools: ['risk.score'], explicitGrants: ['risk_analyst'] });
+  assert.throws(() => runtime.createTask({ actorId: 'test-operator', workspaceId, agentId: 'risk_analyst', input: {}, allowedTools: ['risk.score'], explicitGrants: ['risk_analyst'] }), (error) => error.code === 'client_grants_not_allowed');
+  const trustedRuntime = createRuntime({ db, catalog: { catalog, roles }, killSwitch: () => false, grantResolver: ({ grantContext, agentId }) => grantContext?.source === 'offline-demo' && grantContext.scenarioId === 'risk-assessment' && agentId === 'risk_analyst' ? ['risk_analyst'] : [] });
+  const granted = trustedRuntime.createTask({ actorId: 'test-operator', workspaceId, agentId: 'risk_analyst', input: { risk: { likelihood: 3, impact: 4, control_effectiveness: 0.5 } }, allowedTools: ['risk.score'], grantContext: { source: 'offline-demo', scenarioId: 'risk-assessment' } });
   assert.equal(granted.agent_id, 'risk_analyst');
   closeDatabase(db);
 });

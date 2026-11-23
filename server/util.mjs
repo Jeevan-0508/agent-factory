@@ -11,7 +11,16 @@ export function canonical(value) {
 }
 
 export const hashPlan = (plan) => sha256(JSON.stringify(canonical(plan)));
-export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export function cancellationError(message = 'Execution was cancelled') { return new HttpError(409, message, 'cancelled'); }
+export function throwIfAborted(signal) { if (signal?.aborted) throw cancellationError(); }
+export function sleep(ms, signal) {
+  if (signal?.aborted) return Promise.reject(cancellationError());
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, ms);
+    const onAbort = () => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); reject(cancellationError()); };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 export class HttpError extends Error {
   constructor(status, message, code = 'request_error', details = null) {
@@ -40,7 +49,17 @@ export async function readJson(request, maxBytes = 256 * 1024) {
 }
 
 export function parseCookies(header = '') {
-  return Object.fromEntries(header.split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter(([key, value]) => key && value));
+  const cookies = {};
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator < 1) continue;
+    try {
+      const key = decodeURIComponent(part.slice(0, separator).trim());
+      const value = decodeURIComponent(part.slice(separator + 1).trim());
+      if (key && value) cookies[key] = value;
+    } catch { /* malformed cookies are ignored and fail authentication */ }
+  }
+  return cookies;
 }
 
 export function assertObject(value, message = 'Expected an object') {

@@ -5,7 +5,7 @@ test.describe('V4 execution console', () => {
     await page.goto('#execution');
     await expect(page.getByText('Backend connected')).toBeVisible();
     await expect(page.getByText('Five offline proofs')).toBeVisible();
-    await page.getByRole('button', { name: 'Run offline scenario' }).first().click();
+    await page.getByRole('button', { name: 'Run demonstration' }).first().click();
     await expect(page.locator('.timeline-card h2')).toContainText('COMPLETED', { timeout: 15_000 });
     await expect(page.locator('.evidence-json')).not.toContainText('Select a completed task');
   });

@@ -267,7 +267,7 @@ async function runScenario(scenarioId) {
   state.execution.selectedTask = null;
   state.execution.events = [];
   state.execution.evidence = null;
-  showToast('Scenario approved and started');
+  showToast('Offline demonstration approved and started; no human authorization implied');
   render();
   await pollRuntimeRun(result.run.id);
 }
@@ -315,7 +315,7 @@ function renderExecution() {
     el('h3', { text: scenario.name }),
     el('p', { text: scenario.description }),
     el('div', { className: 'tag-list' }, scenario.agents.map((agent) => tag(agent))),
-    button('Run offline scenario', 'small primary', () => runScenario(scenario.id), { disabled: runtime.status !== 'connected' || runtime.killSwitch })
+    button('Run demonstration', 'small primary', () => runScenario(scenario.id), { disabled: runtime.status !== 'connected' || runtime.killSwitch })
   ]));
   const timeline = runtime.events.length
     ? runtime.events.map((event) => el('li', { className: 'execution-event' }, [el('span', { className: 'execution-event-type', text: event.event_type }), el('time', { text: event.created_at }), el('pre', { text: JSON.stringify(event.payload || {}, null, 2) })]))
@@ -349,7 +349,7 @@ function renderExecution() {
         el('div', { className: 'execution-note' }, [el('strong', { text: 'Safe tool registry: ' }), 'catalog.lookup, schema.validate, evidence.compare, risk.score, workflow.validate, knowledge.retrieve. Shell, network, arbitrary code, and secret access are not registered.'])
       ])
     ]),
-    el('section', { className: 'execution-card scenario-deck' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'SCENARIO LAB' }), el('h2', { text: 'Five offline proofs' }), el('p', { text: 'Real persisted workflows exercise risk, governance, architecture, delivery, and recovery paths.' })]), badge(runtime.status === 'connected' ? 'Runnable' : 'Start backend', runtime.status === 'connected' ? 'green' : 'amber')]), el('div', { className: 'scenario-grid' }, scenarioCards)]),
+    el('section', { className: 'execution-card scenario-deck' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'SCENARIO LAB · DEMONSTRATIONS' }), el('h2', { text: 'Five offline proofs' }), el('p', { text: 'Server-controlled, deterministic demonstrations exercise risk, governance, architecture, delivery, and recovery paths. Automatic demo approval is not independent human authorization.' })]), badge(runtime.status === 'connected' ? 'Runnable' : 'Start backend', runtime.status === 'connected' ? 'green' : 'amber')]), el('div', { className: 'scenario-grid' }, scenarioCards)]),
     el('div', { className: 'execution-grid execution-bottom-grid' }, [
       el('section', { className: 'execution-card timeline-card' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'AUDIT TRAIL' }), el('h2', { text: selected ? `${selected.id} · ${selected.status}` : 'Execution timeline' }), el('p', { text: 'Append-only audit events and structured handoffs from the selected run.' })])]), el('ol', { className: 'execution-timeline' }, timeline)]),
       el('section', { className: 'execution-card evidence-card' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'EVIDENCE INSPECTOR' }), el('h2', { text: 'Structured result' }), el('p', { text: 'Evidence is displayed as persisted JSON, not fabricated telemetry.' })]), runtime.evidence ? button('Copy evidence', 'small ghost', () => copyText(JSON.stringify(runtime.evidence, null, 2), 'Evidence copied')) : null]), el('pre', { className: 'evidence-json', text: runtime.evidence ? JSON.stringify(runtime.evidence, null, 2) : 'Select a completed task or scenario to inspect its evidence.' })])

@@ -30,6 +30,7 @@ The repository is a source of truth for role design and documentation. It does n
 - `docs/runtime-api.md` — local API routes, lifecycle examples, and client contract.
 - `docs/workflow-lifecycle.md` — bounded orchestration, approvals, retries, recovery, and handoffs.
 - `docs/security-model.md` — authorization, threat model, kill switch, and safe-tool boundary.
+- `docs/v3-v4-divergence.md` — audited V3/V4 divergence and the no-deploy integration decision.
 - `docs/provider-adapters.md` — provider-neutral adapter contract and offline-first policy.
 - `docs/database-schema.md` — durable SQLite tables and persistence responsibilities.
 - `docs/evaluation-methodology.md` — structural, deterministic, connected, and human evaluation layers.

@@ -18,7 +18,7 @@ test('schedules independent steps in a bounded parallel batch', async () => {
         { id: 'security', agent_id: 'security_engineer', input_contract: { type: 'object' }, output_contract: { type: 'object' }, input_template: { requirements: ['parallel B'] }, retry_limit: 0 }
       ]
     } });
-    const created = app.workflows.createRun({ workspaceId: 'local-workspace', actorId: 'local-operator', workflowId: workflow.id, input: {}, authorization: { allowedTools: ['schema.validate'], explicitGrants: [], timeLimitMs: 5_000, budgetLimit: 2 } });
+    const created = app.workflows.createRun({ workspaceId: 'local-workspace', actorId: 'local-operator', workflowId: workflow.id, input: {}, authorization: { allowedTools: ['schema.validate'], timeLimitMs: 5_000, budgetLimit: 2 } });
     app.workflows.requestApproval(created.id, 'local-workspace', 'local-operator');
     app.workflows.approveRun(created.id, 'local-workspace', 'local-operator');
     app.workflows.start(created.id, 'local-workspace', 'local-operator');

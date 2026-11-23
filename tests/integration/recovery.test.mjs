@@ -22,6 +22,8 @@ test('marks interrupted workflow runs recoverable after restart and resumes them
   const session = await request(base, '/api/v1/session');
   const workflow = await request(base, '/api/v1/workflows', { method: 'POST', body: JSON.stringify({ name: 'Recovery proof', description: 'restart proof', definition: { max_concurrency: 1, steps: [{ id: 'architect', agent_id: 'solution_architect', input_contract: { type: 'object' }, output_contract: { type: 'object' }, input_template: { requirements: ['restart'] }, retry_limit: 0 }] } }) }, session.cookie);
   const created = await request(base, `/api/v1/workflows/${workflow.body.id}/runs`, { method: 'POST', body: JSON.stringify({ input: { requirements: ['restart'] }, allowed_tools: ['schema.validate'] }) }, session.cookie);
+  await request(base, `/api/v1/workflow-runs/${created.body.id}/request-approval`, { method: 'POST', body: '{}' }, session.cookie);
+  await request(base, `/api/v1/workflow-runs/${created.body.id}/approve`, { method: 'POST', body: '{}' }, session.cookie);
   run(first.db, 'UPDATE workflow_runs SET status = ? WHERE id = ?', ['RUNNING', created.body.id]);
   await first.close();
 

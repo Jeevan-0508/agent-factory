@@ -20,7 +20,12 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
   const workspaceId = ensureWorkspace(db);
   seedCatalog(db, catalog, workspaceId);
   let killSwitch = Boolean(get(db, 'SELECT kill_switch FROM workspaces WHERE id = ?', [workspaceId])?.kill_switch);
-  const runtime = createRuntime({ db, catalog: { catalog, roles }, killSwitch: () => killSwitch });
+  const trustedGrantResolver = ({ grantContext, agentId }) => {
+    if (!grantContext || grantContext.source !== 'offline-demo') return [];
+    const scenario = scenarioById(grantContext.scenarioId);
+    return scenario && scenario.grants.includes(agentId) ? [agentId] : [];
+  };
+  const runtime = createRuntime({ db, catalog: { catalog, roles }, killSwitch: () => killSwitch, grantResolver: trustedGrantResolver });
   const workflows = createWorkflowEngine({ db, catalog: { catalog, roles }, runtime, killSwitch: () => killSwitch });
   const providers = createProviderRegistry();
   workflows.recover();
@@ -28,6 +33,7 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
 
   const server = http.createServer(async (request, response) => {
     try {
+      if (!hostAllowed(request, port)) throw new HttpError(403, 'Host is not allowed', 'host_denied');
       if (!originAllowed(request, port)) throw new HttpError(403, 'Origin is not allowed', 'origin_denied');
       if (!rateAllowed(request)) throw new HttpError(429, 'Too many requests', 'rate_limited');
       const requestUrl = new URL(request.url || '/', `http://127.0.0.1:${port}`);
@@ -54,12 +60,12 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
       if (request.method === 'GET') return jsonResponse(response, 200, { active: killSwitch });
       if (request.method === 'POST') { killSwitch = Boolean(body.active); run(db, 'UPDATE workspaces SET kill_switch = ? WHERE id = ?', [killSwitch ? 1 : 0, session.workspaceId]); audit(db, { workspaceId: session.workspaceId, actorId: session.actorId, correlationId: id('corr'), eventType: killSwitch ? 'KILL_SWITCH_ENABLED' : 'KILL_SWITCH_DISABLED', entityType: 'workspace', entityId: session.workspaceId, payload: { active: killSwitch } }); return jsonResponse(response, 200, { active: killSwitch }); }
     }
-    if (url.pathname === '/api/v1/tasks' && request.method === 'POST') { const task = runtime.createTask({ actorId: session.actorId, workspaceId: session.workspaceId, agentId: body.agent_id, input: body.input || {}, requestedCapabilities: body.requested_capabilities || [], allowedTools: body.allowed_tools || [], dataScope: body.data_scope, timeLimitMs: body.time_limit_ms, budgetLimit: body.budget_limit, explicitGrants: body.explicit_grants || [], idempotencyKey: request.headers['idempotency-key'] || body.idempotency_key || null }); return jsonResponse(response, 201, task); }
+    if (url.pathname === '/api/v1/tasks' && request.method === 'POST') { if (body.explicit_grants !== undefined) throw new HttpError(403, 'Client-controlled explicit grants are not accepted', 'client_grants_not_allowed'); const task = runtime.createTask({ actorId: session.actorId, workspaceId: session.workspaceId, agentId: body.agent_id, input: body.input || {}, requestedCapabilities: body.requested_capabilities || [], allowedTools: body.allowed_tools || [], dataScope: body.data_scope, timeLimitMs: body.time_limit_ms, budgetLimit: body.budget_limit, idempotencyKey: request.headers['idempotency-key'] || body.idempotency_key || null }); return jsonResponse(response, 201, task); }
     if (url.pathname === '/api/v1/tasks' && request.method === 'GET') return jsonResponse(response, 200, { tasks: all(db, 'SELECT id, agent_id, status, plan_hash, correlation_id, created_at, started_at, completed_at, error_code, error_message FROM tasks WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 100', [session.workspaceId]) });
     if (parts[2] === 'tasks' && parts[3]) return await taskRoute(request, response, parts[3], parts[4], body, session);
     if (url.pathname === '/api/v1/workflows' && request.method === 'GET') return jsonResponse(response, 200, { workflows: workflows.listWorkflows(session.workspaceId) });
     if (url.pathname === '/api/v1/workflows' && request.method === 'POST') return jsonResponse(response, 201, workflows.createWorkflow({ workspaceId: session.workspaceId, name: body.name, description: body.description, definition: body.definition }));
-    if (parts[2] === 'workflows' && parts[3] && parts[4] === 'runs' && request.method === 'POST') return jsonResponse(response, 201, workflows.createRun({ workspaceId: session.workspaceId, actorId: session.actorId, workflowId: parts[3], input: body.input || {}, idempotencyKey: request.headers['idempotency-key'] || body.idempotency_key, authorization: { allowedTools: body.allowed_tools || [], explicitGrants: body.explicit_grants || [], dataScope: body.data_scope, timeLimitMs: body.time_limit_ms, budgetLimit: body.budget_limit } }));
+    if (parts[2] === 'workflows' && parts[3] && parts[4] === 'runs' && request.method === 'POST') { if (body.explicit_grants !== undefined) throw new HttpError(403, 'Client-controlled explicit grants are not accepted', 'client_grants_not_allowed'); return jsonResponse(response, 201, workflows.createRun({ workspaceId: session.workspaceId, actorId: session.actorId, workflowId: parts[3], input: body.input || {}, idempotencyKey: request.headers['idempotency-key'] || body.idempotency_key, authorization: { allowedTools: body.allowed_tools || [], dataScope: body.data_scope, timeLimitMs: body.time_limit_ms, budgetLimit: body.budget_limit } })); }
     if (parts[2] === 'workflows' && parts[3] && request.method === 'GET') return jsonResponse(response, 200, workflows.getWorkflow(parts[3], session.workspaceId));
     if (parts[2] === 'workflow-runs' && parts[3]) return await workflowRunRoute(request, response, parts[3], parts[4], body, session);
     if (parts[2] === 'scenarios' && parts[3] === 'run' && request.method === 'POST') return await runScenario(response, body, session);
@@ -89,14 +95,15 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
   }
 
   async function runScenario(response, body, session) {
+    if (body.explicit_grants !== undefined || body.grants !== undefined || body.allowed_tools !== undefined) throw new HttpError(403, 'Scenario execution policy is server-controlled', 'client_policy_not_allowed');
     const scenario = scenarioById(body.scenario_id);
     if (!scenario) throw new HttpError(404, 'Scenario not found', 'scenario_not_found');
     const workflow = workflows.createWorkflow({ workspaceId: session.workspaceId, name: `${scenario.name} demo`, description: scenario.description, definition: scenarioDefinition(scenario) });
-    const created = workflows.createRun({ workspaceId: session.workspaceId, actorId: session.actorId, workflowId: workflow.id, input: body.input || scenario.input, authorization: { allowedTools: scenario.tools, explicitGrants: scenario.grants, timeLimitMs: 5_000, budgetLimit: scenario.agents.length }, idempotencyKey: body.idempotency_key });
-    workflows.requestApproval(created.id, session.workspaceId, session.actorId);
-    workflows.approveRun(created.id, session.workspaceId, session.actorId, 'APPROVED', 'Explicit offline scenario approval');
+    const created = workflows.createRun({ workspaceId: session.workspaceId, actorId: session.actorId, workflowId: workflow.id, input: body.input || scenario.input, authorization: { allowedTools: scenario.tools, grantContext: { source: 'offline-demo', scenarioId: scenario.id }, timeLimitMs: 5_000, budgetLimit: scenario.agents.length }, idempotencyKey: body.idempotency_key });
+    workflows.requestApproval(created.id, session.workspaceId, session.actorId, { approvalMode: 'demo' });
+    workflows.approveRun(created.id, session.workspaceId, session.actorId, 'APPROVED', 'Trusted offline demonstration policy approval; not independent human authorization', { trustedDemo: true });
     const started = workflows.start(created.id, session.workspaceId, session.actorId);
-    return jsonResponse(response, 202, { scenario_id: scenario.id, run: started, expected_mode: 'deterministic-local' });
+    return jsonResponse(response, 202, { scenario_id: scenario.id, run: started, expected_mode: 'deterministic-local', approval_mode: 'demo', human_authorization: false });
   }
 
   return {
@@ -122,6 +129,15 @@ function seedCatalog(db, catalog, workspaceId) {
 }
 
 function parseAudit(row) { return { ...row, payload: JSON.parse(row.payload_json) }; }
+function hostAllowed(request, port) {
+  const header = request.headers.host;
+  if (!header) return false;
+  try {
+    const parsed = new URL(`http://${header}`);
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)) return false;
+    return port === 0 || parsed.port === String(port);
+  } catch { return false; }
+}
 function originAllowed(request, port) { const origin = request.headers.origin; if (!origin) return true; if (port === 0) return origin === `http://${request.headers.host}`; return origin === `http://127.0.0.1:${port}` || origin === `http://localhost:${port}`; }
 function rateAllowed(request) { const key = request.socket.remoteAddress || 'local'; const current = rateMap.get(key) || { started: Date.now(), count: 0 }; if (Date.now() - current.started > 60_000) { current.started = Date.now(); current.count = 0; } current.count += 1; rateMap.set(key, current); return current.count <= 240; }
 const rateMap = new Map();
@@ -134,6 +150,6 @@ function serveStatic(request, response, pathname, root) {
   if (!allowed.has(targetPath)) throw new HttpError(404, 'Not found', 'not_found');
   const file = path.resolve(root, `.${targetPath}`);
   if (!file.startsWith(`${root}${path.sep}`) || !fs.existsSync(file)) throw new HttpError(404, 'Not found', 'not_found');
-  response.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" });
+  response.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()', 'Cross-Origin-Resource-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" });
   fs.createReadStream(file).pipe(response);
 }
