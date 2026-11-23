@@ -2,20 +2,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Factory catalog",
   "type": "object",
-  "required": ["name", "version", "total_roles", "runtime_supported_roles", "registry_only_roles", "roles"],
+  "required": ["name", "version", "total_roles", "runtime_supported_roles", "registry_only_roles", "roles", "workflow_templates", "evaluation_policy"],
   "properties": {
     "name": { "const": "agent-factory" },
     "version": { "type": "string" },
     "total_roles": { "const": 100 },
     "runtime_supported_roles": { "type": "array", "items": { "type": "string" } },
     "registry_only_roles": { "type": "array", "items": { "type": "string" } },
+    "workflow_templates": { "type": "array", "minItems": 5 },
+    "evaluation_policy": { "type": "object", "required": ["schema_validation", "prompt_contracts", "scenario_evaluation", "runtime_evaluation", "performance_scores"] },
     "roles": {
       "type": "array",
       "minItems": 100,
       "maxItems": 100,
       "items": {
         "type": "object",
-        "required": ["name", "title", "family", "mission", "codename", "mythology", "capabilities", "deliverables", "boundaries", "prompt", "runtime"],
+        "required": ["name", "title", "family", "mission", "codename", "mythology", "capabilities", "deliverables", "boundaries", "prompt", "runtime", "required_inputs", "tools_integrations", "knowledge_domains", "frameworks_standards", "example_tasks", "approval_requirements", "failure_handling", "evaluation_criteria", "runtime_compatibility", "known_limitations", "maintenance"],
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
           "codename": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },

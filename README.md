@@ -16,7 +16,8 @@ The repository is a source of truth for role design and documentation. It does n
 
 ## Contents
 
-- `dashboard/index.html` — static searchable dashboard.
+- `dashboard/index.html` — responsive command center shell.
+- `dashboard/app.js` / `dashboard/styles.css` — local-first explorer, profiles, Prompt Studio, workflow designer, evaluation lab, and governance views.
 - `catalog/roles.json` — machine-readable catalog and mythic aliases.
 - `agents/` — portable TOML definitions for all 100 roles.
 - `runtime/approved/` — the 30 currently approved runtime profiles.
@@ -24,6 +25,23 @@ The repository is a source of truth for role design and documentation. It does n
 - `docs/prompt-library.md` — complete reusable prompt library.
 - `docs/governance.md` — promotion, safety, legal, and privacy boundaries.
 - `scripts/validate-catalog.mjs` — deterministic catalog validation.
+- `scripts/test-catalog.mjs` — regression checks for catalog, profile, workflow, dashboard, and cross-platform behavior.
+
+## Local preview
+
+The command center is a static artifact: it reads `catalog/roles.json` and does not execute agents, call providers, or report live telemetry. Serve the repository root with any local static server, then open `/dashboard/`.
+
+The generator refreshes catalog and documentation artifacts without replacing the polished command center. The dashboard is maintained as a separate checked-in artifact so catalog regeneration cannot overwrite its security-conscious DOM implementation.
+
+## Verification
+
+```text
+npm test
+npm run validate
+node --check dashboard/app.js
+```
+
+Continuous integration runs the same checks on Ubuntu and Windows.
 
 ## Naming convention
 
