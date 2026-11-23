@@ -7,7 +7,7 @@
 🏗️ **[ARCHITECTURE](docs/architecture.md)**<br>
 🛡️ **[SECURITY & GOVERNANCE](docs/security-model.md)**
 
-[![CI](https://github.com/Jeevan-0508/agent-factory/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/Jeevan-0508/agent-factory/actions/workflows/validate.yml) [![Pages](https://github.com/Jeevan-0508/agent-factory/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/Jeevan-0508/agent-factory/actions/workflows/pages.yml)
+[![CI](https://github.com/Jeevan-0508/agent-factory/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/Jeevan-0508/agent-factory/actions/workflows/validate.yml) [![Pages](https://github.com/Jeevan-0508/agent-factory/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/Jeevan-0508/agent-factory/actions/workflows/pages.yml) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 AGENT//FACTORY is an evidence-constrained catalog and local-first orchestration workspace for 100 specialist roles. The names are mythic navigation labels — `zeus-risk-manager`, `shiva-erm-manager`, `vishnu-solution-architect`, and `horus-hr-manager` — while each capability is defined by an explicit job contract, prompt, boundary, deliverable, and runtime status.
 
@@ -100,6 +100,14 @@ For the local runtime, run `npm run start:local` and open `http://127.0.0.1:8787
 - [Architecture](docs/architecture.md) · [Workflow lifecycle](docs/workflow-lifecycle.md) · [Runtime API](docs/runtime-api.md)
 - [Security model](docs/security-model.md) · [Database schema](docs/database-schema.md) · [Evaluation methodology](docs/evaluation-methodology.md)
 - [Visual comparison](docs/visual-comparison-v4.md) · [Installation](docs/installation.md) · [Provider adapters](docs/provider-adapters.md)
+
+## License
+
+AGENT//FACTORY is released under the [Apache License 2.0](LICENSE).
+
+You may use, study, modify, and distribute the project — including in commercial products — provided that you preserve the license and attribution notices, document substantial changes, and comply with the license’s patent and redistribution terms. The license includes an express patent grant and a clear no-warranty boundary.
+
+The license covers the source code and original project documentation. Third-party names, logos, mythology references, dependencies, and linked standards remain subject to their own rights and licenses. The catalog’s role prompts are provided as reusable engineering materials, not as legal, regulatory, medical, HR, financial, or security advice. No license grants permission to use a mythological tradition, person, community, or trademark as an endorsement.
 
 ## Naming and cultural care
 
