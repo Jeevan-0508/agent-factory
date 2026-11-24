@@ -23,6 +23,52 @@ test('all eight experiences share the same registry and remain navigable', async
   }
 });
 
+test('all eight experiences theme the shared shell and secondary views', async ({ page }) => {
+  await loadApp(page);
+  const sharedViews = ['prompts', 'workflows', 'evaluations', 'governance', 'olympus', 'council', 'god-loop', 'execution'];
+  const signatures = new Set();
+  const routeCoverage = new Set();
+  for (const id of experiences) {
+    await chooseExperience(page, id);
+    const theme = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const sidebar = getComputedStyle(document.querySelector('.sidebar'));
+      return {
+        background: root.getPropertyValue('--bg').trim(),
+        panel: root.getPropertyValue('--panel').trim(),
+        accent: root.getPropertyValue('--blue').trim(),
+        font: getComputedStyle(document.body).fontFamily,
+        sidebarBackground: sidebar.backgroundColor
+      };
+    });
+    expect(theme.background).not.toBe('');
+    expect(theme.panel).not.toBe('');
+    expect(theme.accent).not.toBe('');
+    signatures.add(JSON.stringify(theme));
+    for (const view of sharedViews) {
+      await page.locator(`[data-view="${view}"]`).click();
+      await expect(page.locator('#app')).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('data-experience', id);
+      const routeTheme = await page.evaluate(() => {
+        const root = getComputedStyle(document.documentElement);
+        const sample = document.querySelector('.panel, .execution-card, .check-card');
+        return {
+          background: root.getPropertyValue('--bg').trim(),
+          panel: root.getPropertyValue('--panel').trim(),
+          sampleBackground: sample ? getComputedStyle(sample).backgroundColor : '',
+          sidebarBackground: getComputedStyle(document.querySelector('.sidebar')).backgroundColor
+        };
+      });
+      expect(routeTheme.background).toBe(theme.background);
+      expect(routeTheme.panel).toBe(theme.panel);
+      expect(routeTheme.sampleBackground).not.toBe('');
+      routeCoverage.add(`${id}:${view}`);
+    }
+  }
+  expect(signatures.size).toBe(8);
+  expect(routeCoverage.size).toBe(64);
+});
+
 test('every catalog role opens a complete profile', async ({ page }) => {
   test.setTimeout(120_000);
   await loadApp(page, '#agents');
@@ -129,6 +175,7 @@ test('automated WCAG scan has no critical or serious violations', async ({ page 
   await chooseExperience(page, 'command-center');
   for (const route of ['#overview', '#agents', '#prompts', '#workflows', '#evaluations', '#governance']) {
     await loadApp(page, route);
+    await waitForStableLayout(page);
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     const severe = results.violations.filter((item) => ['critical', 'serious'].includes(item.impact));
     expect(severe, `${route}: ${JSON.stringify(severe)}`).toEqual([]);
