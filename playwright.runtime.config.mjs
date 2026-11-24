@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const runtimePort = Number(process.env.AGENT_FACTORY_PORT || 40987);
+const runtimeURL = `http://127.0.0.1:${runtimePort}/dashboard/index.html`;
+
 export default defineConfig({
   testDir: './tests/e2e-runtime',
   timeout: 30_000,
@@ -9,7 +12,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [['list'], ['html', { outputFolder: 'playwright-runtime-report', open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:8787/dashboard/index.html',
+    baseURL: runtimeURL,
     browserName: 'chromium',
     colorScheme: 'dark',
     reducedMotion: 'reduce',
@@ -22,8 +25,9 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node --experimental-sqlite server/index.mjs',
-    url: 'http://127.0.0.1:8787/dashboard/index.html',
+    url: runtimeURL,
     timeout: 30_000,
-    reuseExistingServer: !process.env.CI
+    reuseExistingServer: !process.env.CI,
+    env: { AGENT_FACTORY_PORT: String(runtimePort) }
   }
 });

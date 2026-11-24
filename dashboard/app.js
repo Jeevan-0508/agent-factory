@@ -6,6 +6,10 @@ const sidebar = document.querySelector('#sidebar');
 const pageLabel = document.querySelector('#page-label');
 const SVG_TAGS = new Set(['svg', 'g', 'circle', 'line', 'rect', 'title']);
 const STATIC_SHOWCASE = location.hostname.endsWith('github.io') || location.port === '4173';
+const APP_MODULE_URL = new URL(import.meta.url);
+const CATALOG_URL = APP_MODULE_URL.pathname.endsWith('/dashboard/app.js')
+  ? new URL('../catalog/roles.json', APP_MODULE_URL).href
+  : new URL('./catalog/roles.json', APP_MODULE_URL).href;
 const COUNCIL_AGENT_IDS = ['solution_architect', 'backend_engineer', 'frontend_engineer', 'security_engineer', 'risk_manager', 'ai_governance_manager', 'qa_test_engineer', 'performance_engineer', 'documentation_writer', 'release_manager'];
 
 const state = {
@@ -227,6 +231,11 @@ async function runtimeRequest(path, options = {}) {
 
 async function loadRuntime() {
   if (state.execution.loading) return;
+  if (STATIC_SHOWCASE) {
+    state.execution.status = 'showcase';
+    state.execution.error = 'Local runtime required for execution; backend calls are disabled in the public showcase.';
+    return;
+  }
   state.execution.loading = true;
   state.execution.error = '';
   render();
@@ -797,4 +806,4 @@ applyTheme();
 applyExperience();
 setSidebarOpen(false);
 window.matchMedia('(max-width: 780px)').addEventListener?.('change', () => setSidebarOpen(false));
-fetch('../catalog/roles.json', { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); state.graph = buildCapabilityGraph(state.data); render(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });
+fetch(CATALOG_URL, { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); state.graph = buildCapabilityGraph(state.data); render(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });
