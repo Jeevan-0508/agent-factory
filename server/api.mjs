@@ -8,6 +8,7 @@ import { audit, ensureWorkspace, LOCAL_WORKSPACE, createAuth } from './auth.mjs'
 import { createRuntime } from './runtime.mjs';
 import { createWorkflowEngine } from './workflow-engine.mjs';
 import { createProviderRegistry } from './providers.mjs';
+import { createOlympus } from './olympus.mjs';
 import { SCENARIOS, scenarioById, scenarioDefinition } from './scenarios.mjs';
 import { HttpError, jsonResponse, readJson, id, now } from './util.mjs';
 
@@ -28,6 +29,7 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
   const runtime = createRuntime({ db, catalog: { catalog, roles }, killSwitch: () => killSwitch, grantResolver: trustedGrantResolver });
   const workflows = createWorkflowEngine({ db, catalog: { catalog, roles }, runtime, killSwitch: () => killSwitch });
   const providers = createProviderRegistry();
+  const olympus = createOlympus({ db, catalog });
   workflows.recover();
   const rate = new Map();
 
@@ -59,6 +61,17 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     if (url.pathname === '/api/v1/providers/paperclip/health' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('health', () => providers.get('paperclip').health(), session));
     if (url.pathname === '/api/v1/providers/paperclip/companies' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverOrganizations', () => providers.get('paperclip').discoverOrganizations(), session));
     if (parts[2] === 'providers' && parts[3] === 'paperclip' && parts[4] === 'companies' && parts[5] && parts[6] === 'agents' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverAgents', () => providers.get('paperclip').discoverAgents(parts[5]), session));
+    if (url.pathname === '/api/v1/olympus/templates' && request.method === 'GET') return jsonResponse(response, 200, { templates: olympus.templates() });
+    if (url.pathname === '/api/v1/olympus/organizations' && request.method === 'GET') return jsonResponse(response, 200, { organizations: olympus.listOrganizations(session.workspaceId) });
+    if (url.pathname === '/api/v1/olympus/organizations' && request.method === 'POST') return jsonResponse(response, 201, olympus.createOrganization({ workspaceId: session.workspaceId, actorId: session.actorId, name: body.name, templateId: body.template_id, objective: body.objective, budgetLimit: body.budget_limit }));
+    if (url.pathname === '/api/v1/olympus/organizations/import' && request.method === 'POST') return jsonResponse(response, 201, olympus.importOrganization({ workspaceId: session.workspaceId, actorId: session.actorId, payload: body }));
+    if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && request.method === 'GET' && !parts[5]) return jsonResponse(response, 200, olympus.getOrganization(session.workspaceId, parts[4]));
+    if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'export' && request.method === 'GET') return jsonResponse(response, 200, olympus.exportOrganization(session.workspaceId, parts[4]));
+    if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'departments' && request.method === 'POST') return jsonResponse(response, 201, olympus.createDepartment({ workspaceId: session.workspaceId, actorId: session.actorId, organizationId: parts[4], name: body.name, objective: body.objective, parentId: body.parent_id }));
+    if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'members' && parts[6] && request.method === 'PATCH') return jsonResponse(response, 200, olympus.updateMember({ workspaceId: session.workspaceId, actorId: session.actorId, organizationId: parts[4], agentId: parts[6], changes: body }));
+    if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'members' && request.method === 'POST') return jsonResponse(response, 201, olympus.recruitMember({ workspaceId: session.workspaceId, actorId: session.actorId, organizationId: parts[4], agentId: body.agent_id, title: body.title, reportsTo: body.reports_to, departmentId: body.department_id, capabilities: body.capabilities, availability: body.availability }));
+    if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'projects' && request.method === 'POST') return jsonResponse(response, 201, olympus.createProject({ workspaceId: session.workspaceId, actorId: session.actorId, organizationId: parts[4], name: body.name, objective: body.objective, ownerAgentId: body.owner_agent_id, status: body.status }));
+    if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'objectives' && request.method === 'POST') return jsonResponse(response, 201, olympus.createObjective({ workspaceId: session.workspaceId, actorId: session.actorId, organizationId: parts[4], title: body.title, description: body.description, status: body.status }));
     if (url.pathname === '/api/v1/runtime/kill-switch') {
       if (request.method === 'GET') return jsonResponse(response, 200, { active: killSwitch });
       if (request.method === 'POST') { killSwitch = Boolean(body.active); run(db, 'UPDATE workspaces SET kill_switch = ? WHERE id = ?', [killSwitch ? 1 : 0, session.workspaceId]); audit(db, { workspaceId: session.workspaceId, actorId: session.actorId, correlationId: id('corr'), eventType: killSwitch ? 'KILL_SWITCH_ENABLED' : 'KILL_SWITCH_DISABLED', entityType: 'workspace', entityId: session.workspaceId, payload: { active: killSwitch } }); return jsonResponse(response, 200, { active: killSwitch }); }
@@ -125,6 +138,7 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     db,
     runtime,
     workflows,
+    olympus,
     catalog,
     start: () => new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server.address()))),
     close: () => new Promise((resolve, reject) => {
