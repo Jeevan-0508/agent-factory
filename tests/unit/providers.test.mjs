@@ -47,6 +47,73 @@ test('mock adapter provides deterministic contract fixtures without network acce
   assert.deepEqual(calls.map(([operation]) => operation), ['health', 'discoverOrganizations']);
 });
 
+test('provider registry forwards parameterized read-only inputs as scalar operation arguments', async () => {
+  const calls = [];
+  const mock = createMockPaperclipAdapter({ calls });
+  const registry = createProviderRegistry({ env: {}, mockAdapter: mock });
+  const cases = [
+    ['discoverAgents', { companyId: 'mock-company' }, ['discoverAgents', 'mock-company']],
+    ['getAgent', { agentId: 'mock-agent' }, ['getAgent', 'mock-agent']],
+    ['getDashboard', { companyId: 'mock-company' }, ['getDashboard', 'mock-company']],
+    ['getBudget', { companyId: 'mock-company' }, ['getBudget', 'mock-company']]
+  ];
+
+  for (const [operation, input, expectedCall] of cases) {
+    const argument = expectedCall[1];
+    const directResult = await mock[operation](argument);
+    const result = await registry.invoke('mock-paperclip', operation, input);
+    assert.deepEqual(calls.at(-1), expectedCall);
+    assert.deepEqual(result, directResult);
+  }
+});
+
+test('provider registry rejects parameterized calls outside the configured company binding', async () => {
+  const calls = [];
+  const registry = createProviderRegistry({
+    env: { PAPERCLIP_COMPANY_ID: 'company-a' },
+    mockAdapter: createMockPaperclipAdapter({ calls })
+  });
+
+  await assert.rejects(
+    registry.invoke('mock-paperclip', 'getBudget', { companyId: 'company-b' }),
+    (error) => error.code === 'provider_company_mismatch'
+  );
+  assert.equal(calls.length, 0);
+});
+
+test('provider registry rejects an agent record returned from another company', async () => {
+  const calls = [];
+  const mock = createMockPaperclipAdapter({ calls });
+  mock.getAgent = async (agentId) => {
+    calls.push(['getAgent', agentId]);
+    return { id: agentId, name: 'Foreign Agent', companyId: 'company-b' };
+  };
+  const registry = createProviderRegistry({
+    env: { PAPERCLIP_COMPANY_ID: 'company-a' },
+    mockAdapter: mock
+  });
+
+  await assert.rejects(
+    registry.invoke('mock-paperclip', 'getAgent', { agentId: 'foreign-agent' }),
+    (error) => error.code === 'provider_company_mismatch'
+  );
+  assert.deepEqual(calls, [['getAgent', 'foreign-agent']]);
+});
+
+test('provider registry rejects an agent record without company ownership when bound', async () => {
+  const mock = createMockPaperclipAdapter();
+  mock.getAgent = async (agentId) => ({ id: agentId, name: 'Unscoped Agent' });
+  const registry = createProviderRegistry({
+    env: { PAPERCLIP_COMPANY_ID: 'company-a' },
+    mockAdapter: mock
+  });
+
+  await assert.rejects(
+    registry.invoke('mock-paperclip', 'getAgent', { agentId: 'unscoped-agent' }),
+    (error) => error.code === 'provider_company_mismatch'
+  );
+});
+
 test('provider registry rejects execution operations and requires explicit workspace/company bindings', async () => {
   const calls = [];
   const registry = createProviderRegistry({ env: { PAPERCLIP_ENABLED: 'true', PAPERCLIP_API_URL: 'https://paperclip.example.test', PAPERCLIP_API_TOKEN: 'server-token-value', PAPERCLIP_WORKSPACE_ID: 'workspace-a', PAPERCLIP_COMPANY_ID: 'company-a' }, fetchImpl: async () => response(200, []) });

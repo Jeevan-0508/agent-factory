@@ -10,10 +10,10 @@ This matrix distinguishes shipped evidence from intentionally unavailable eviden
 | OLYMPUS and Engineering Council | Verified | Integration tests; reporting lines are catalog-backed |
 | GOD LOOP control plane | Verified with boundary | Durable approval, monotonic checkpoints, terminal immutability, bounded inputs, operator-vs-machine evidence labels |
 | GOD LOOP autonomous execution | Incomplete | No executor is enabled; no Codex/provider call was authorized in this run |
-| Native Codex integration | Blocked in this host | Project and explicit Codex-home installer works; authenticated CLI started, but repository reads were rejected by host policy and native subagent launch failed |
+| Native Codex integration | Verified for project-scoped specialists | Current Codex session recognized installed `security_engineer` and `qa_test_engineer` profiles, completed bounded investigation/repair, and accepted independent cross-review; see [execution proof](execution-proof.md). The earlier CLI benchmark remains blocked and is not treated as native execution evidence |
 | Specialist task routing | Verified as selection preview | Deterministic catalog-backed preview; it does not claim delegation or execution |
 | Versioned engineering knowledge | Verified as local control plane | Propose, independent approval, accept, and reversible revert in SQLite |
-| Benchmark suite | Definitions only | Eight representative tasks are declared; the authorized proof attempt was blocked before inspection, so no success or improvement metrics are claimed |
+| Benchmark suite | Definitions only | Eight representative tasks are declared; the authorized CLI proof attempt was blocked before inspection, so no accuracy, speed, token, coordination, or improvement metrics are claimed |
 | Paperclip | Optional, read-only, fail-closed | Mock contract tests, version gate, response bounds, redirect rejection, operation/workspace/company allowlists |
 | Cross-repository portability | Verified for installer | Disposable target repository tests cover project and Codex-home layouts; full task execution remains unproven |
 | Public dashboard | Verified static-only | GitHub Pages artifact remains browser-only; local runtime and credentials are not published |

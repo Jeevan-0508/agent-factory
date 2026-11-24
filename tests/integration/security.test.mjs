@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -18,8 +19,39 @@ async function makeApp() {
 async function request(base, pathName, options = {}, cookie = '') {
   const response = await fetch(`${base}${pathName}`, { ...options, headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}), ...(options.headers || {}) } });
   const body = await response.json().catch(() => ({}));
-  return { response, body, cookie: response.headers.get('set-cookie')?.split(';')[0] || cookie };
+  const setCookie = response.headers.get('set-cookie') || '';
+  return { response, body, setCookie, cookie: setCookie.split(';')[0] || cookie };
 }
+
+function rawRequest(base, pathName, headers = {}) {
+  const target = new URL(pathName, base);
+  return new Promise((resolve, reject) => {
+    const request = http.request({ hostname: target.hostname, port: target.port, path: target.pathname, method: 'GET', headers }, (response) => {
+      response.resume();
+      response.once('end', () => resolve(response));
+    });
+    request.once('error', reject);
+    request.end();
+  });
+}
+
+test('pins the intentional loopback session bootstrap trust boundary', async () => {
+  const { app, base } = await makeApp();
+  try {
+    const session = await request(base, '/api/v1/session');
+    assert.equal(session.response.status, 200);
+    assert.equal(session.body.mode, 'local-session');
+    assert.match(session.setCookie, /HttpOnly/);
+    assert.match(session.setCookie, /SameSite=Strict/);
+    assert.match(session.setCookie, /Max-Age=28800/);
+    assert.equal((await request(base, '/api/v1/agents')).response.status, 401);
+    const hostileBootstrap = await request(base, '/api/v1/session', { headers: { Origin: 'https://evil.example' } });
+    assert.equal(hostileBootstrap.response.status, 403);
+    assert.equal(hostileBootstrap.setCookie, '');
+    assert.equal((await request(base, '/api/v1/agents', { headers: { Origin: 'https://evil.example' } }, session.cookie)).response.status, 403);
+    assert.equal((await rawRequest(base, '/api/v1/session', { Host: 'evil.example' })).statusCode, 403);
+  } finally { await app.close(); }
+});
 
 test('denies unauthenticated, unsafe-tool, cross-origin, registry-only, and kill-switch execution paths', async () => {
   const { app, base } = await makeApp();

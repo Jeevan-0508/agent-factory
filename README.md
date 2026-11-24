@@ -75,6 +75,7 @@ Lifecycle: `DRAFT → VALIDATED → AWAITING_APPROVAL → APPROVED → RUNNING �
 - Deterministic task-routing preview that selects the minimum catalog-backed specialist set without pretending delegation occurred.
 - Versioned engineering knowledge store with independent approval and reversible reversion.
 - Honest benchmark definitions and a completion matrix that separates verified behavior from unavailable real-execution evidence.
+- Native project-scoped specialist delegation is verified in the current Codex session for bounded investigation, repair, and cross-review; autonomous recursive GOD LOOP execution and benchmark superiority remain unproven.
 - Optional Paperclip bridge with server-side secret handling, exact documented read-only discovery routes, version gating, timeouts, redacted errors, and deterministic mock fixtures.
 - Security, catalog, runtime, browser, accessibility, and visual regression coverage in CI.
 

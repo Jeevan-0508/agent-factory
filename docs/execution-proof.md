@@ -29,4 +29,17 @@ The two additional benchmark pairs and self-review were not started because the 
 
 ## Decision
 
-The execution-proof milestone remains incomplete. AGENT//FACTORY’s portable installer, routing preview, governance controls, and deterministic runtime are verified locally, but this environment cannot currently prove genuine repository-reading Codex delegation. The simplest reliable integration remains project-scoped custom-agent installation plus explicit, host-supported Codex delegation; native execution should remain opt-in until the command-runner policy and thread-store issue are repaired.
+The CLI benchmark milestone remains incomplete. AGENT//FACTORY’s portable installer, routing preview, governance controls, and deterministic runtime are verified locally. A later current-session check did prove bounded project-scoped specialist delegation; it did not prove autonomous recursive execution or benchmark improvement. The simplest reliable integration remains project-scoped custom-agent installation plus explicit, host-supported Codex delegation.
+
+## Native specialist self-repair evidence — current Codex session
+
+The later project-scoped integration check used the current Codex desktop session, not a nested Codex process. The installer created two local profiles under `.codex/agents/`, and validation returned `ok: true` with `files: 2` and no errors. These installation artifacts remain local and are intentionally excluded from Git.
+
+| Specialist | Native delegation evidence | Contribution | Independent verification |
+| --- | --- | --- | --- |
+| `security_engineer` / Epicurus (`01a20ead-9df5-7a20-9928-a0e8c69fff68`) | Profile recognized and task completed in the current session | Assessed anonymous `/api/v1/session` issuance against the loopback single-operator threat model; classified it as intentional, not a confirmed defect; recommended explicit boundary regression coverage | Live checks confirmed loopback `200`, protected route without cookie `401`, hostile Origin `403`, hostile Host `403`, loopback binding, and secure cookie flags |
+| `qa_test_engineer` / Meitner (`01a20ead-9fa1-7542-a55e-e6c04d533422`) | Profile recognized and task completed in the current session | Repaired the provider registry positional-argument defect and added scalar forwarding tests | Provider and security integration tests passed; cross-review added company-binding and returned-agent tenant checks |
+
+The cross-review wave used `security_engineer` / Confucius (`01a20eb0-6181-7f41-94c0-09db64a5314e`) and `qa_test_engineer` / Laplace (`01a20eb0-6064-73e0-8cbb-db010cdc50f6`). It found and closed bounded gaps: configured company enforcement for parameterized provider reads, returned-agent company validation including missing ownership metadata, direct hostile-origin session-bootstrap coverage, and the documented eight-hour cookie lifetime. The final targeted repair run passed **14/14** tests. The security specialist made no source edits because its reproduced behavior is explicitly part of the documented local trust boundary.
+
+This proves project-scoped profile discovery, native specialist delegation, bounded repair contribution, and independent review inside a normal Codex session. It does **not** prove autonomous recursive GOD LOOP execution, provider-backed engineering work, benchmark superiority, or production identity security. Those remain separate, intentionally unclaimed capabilities.

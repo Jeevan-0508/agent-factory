@@ -6,6 +6,12 @@ const PAPERCLIP_VERSION = 'v2026.609.0';
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const MAX_RESPONSE_BYTES = 1_000_000;
 const READ_ONLY_OPERATIONS = new Set(['health', 'openApi', 'discoverOrganizations', 'discoverAgents', 'getAgent', 'getDashboard', 'getBudget']);
+const PARAMETERIZED_READ_ONLY_OPERATIONS = new Map([
+  ['discoverAgents', 'companyId'],
+  ['getAgent', 'agentId'],
+  ['getDashboard', 'companyId'],
+  ['getBudget', 'companyId']
+]);
 
 const PROVIDER_METADATA = [
   { id: 'deterministic-local', status: 'configured', network: 'none', credentials: 'not applicable', execution_mode: 'rule-based local contract' },
@@ -172,7 +178,11 @@ export function createProviderRegistry({ env = process.env, fetchImpl = globalTh
       if (providerId !== 'deterministic-local' && !READ_ONLY_OPERATIONS.has(operation)) throw new HttpError(403, 'Provider execution operations are disabled; only explicit read-only discovery is permitted', 'provider_operation_not_authorized');
       const provider = this.get(providerId);
       if (typeof provider[operation] !== 'function') throw new HttpError(400, 'Provider operation is not supported', 'provider_operation_not_supported');
-      return provider[operation](input);
+      const inputKey = PARAMETERIZED_READ_ONLY_OPERATIONS.get(operation);
+      if (inputKey === 'companyId') assertCompany(input?.companyId);
+      const result = inputKey ? await provider[operation](input?.[inputKey]) : await provider[operation]();
+      if (operation === 'getAgent' && boundCompanyId && result?.companyId !== boundCompanyId) throw new HttpError(403, 'Paperclip agent record is outside the configured company binding', 'provider_company_mismatch');
+      return result;
     }
   };
 }
