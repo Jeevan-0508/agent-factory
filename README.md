@@ -108,6 +108,7 @@ For the local runtime, run `npm run start:local` and open `http://127.0.0.1:8787
 - [Security model](docs/security-model.md) · [Database schema](docs/database-schema.md) · [Evaluation methodology](docs/evaluation-methodology.md)
 - [OLYMPUS builder](docs/olympus.md) · [Engineering Council](docs/engineering-council.md) · [Bounded GOD LOOP](docs/god-loop.md)
 - [Completion matrix](docs/completion-matrix.md) · [Installation](docs/installation.md) · [Provider adapters](docs/provider-adapters.md)
+- [Execution proof](docs/execution-proof.md)
 - [V5 integration assessment](docs/v5-integration-assessment.md) · [V5 architecture decision](docs/v5-architecture-decision.md) · [V5 threat model](docs/v5-threat-model.md)
 - [Visual comparison](docs/visual-comparison-v4.md) · [Execution adapter investigation](docs/v5-execution-adapter.md)
 
