@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const codexHome = process.env.CODEX_HOME || 'C:/Users/HP/.codex';
 const r = (name, title, family, mission, caps, outputs, boundaries, runtime = false) => ({ name, title, family, mission, capabilities: caps, deliverables: outputs, boundaries, runtime });
 
 const roles = [
@@ -203,7 +202,6 @@ write(path.join(root, 'catalog', 'roles.json'), `${JSON.stringify(catalog, null,
 write(path.join(root, 'agents', 'README.md'), '# Agent definitions\n\nEach TOML file is a portable role definition with a reusable developer prompt. Stable machine IDs remain compatible with the current 30-role runtime; mythological aliases are documented in the catalog and dashboard.\n');
 for (const item of roles) write(path.join(root, 'agents', `${item.name.replaceAll('_', '-')}.toml`), toToml(item));
 for (const item of roles.filter((item) => item.runtime)) write(path.join(root, 'runtime', 'approved', `${item.name.replaceAll('_', '-')}.toml`), toToml(item));
-for (const item of roles.filter((item) => item.runtime)) write(path.join(codexHome, 'agents', `${item.name.replaceAll('_', '-')}.toml`), toToml(item));
 
 const families = [...new Set(roles.map((item) => item.family))].sort();
 const roleSections = families.map((family) => {
@@ -218,4 +216,4 @@ const familyCounts = Object.fromEntries(families.map((family) => [family, roles.
 const dashboardData = JSON.stringify({ ...catalog, family_counts: familyCounts });
 // The polished command center is checked in under dashboard/ and is maintained separately from catalog generation.
 
-console.log(JSON.stringify({ total_roles: roles.length, runtime_supported: roles.filter((item) => item.runtime).length, registry_only: roles.filter((item) => !item.runtime).length, mythic_aliases: roles.map((item) => item.display_name), root, codexHome }, null, 2));
+console.log(JSON.stringify({ total_roles: roles.length, runtime_supported: roles.filter((item) => item.runtime).length, registry_only: roles.filter((item) => !item.runtime).length, mythic_aliases: roles.map((item) => item.display_name), root, global_install: 'disabled; use scripts/agent-factory.mjs install with an explicit --target' }, null, 2));

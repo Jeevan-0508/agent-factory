@@ -11,6 +11,9 @@ import { createProviderRegistry } from './providers.mjs';
 import { createOlympus } from './olympus.mjs';
 import { createEngineeringCouncil } from './council.mjs';
 import { createGodLoop } from './god-loop.mjs';
+import { listTools } from './tools.mjs';
+import { createTaskRouter } from './task-routing.mjs';
+import { createKnowledgeStore } from './knowledge.mjs';
 import { SCENARIOS, scenarioById, scenarioDefinition } from './scenarios.mjs';
 import { HttpError, jsonResponse, readJson, id, now } from './util.mjs';
 
@@ -33,7 +36,9 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
   const providers = createProviderRegistry();
   const olympus = createOlympus({ db, catalog });
   const council = createEngineeringCouncil({ olympus });
-  const godLoop = createGodLoop({ db });
+  const godLoop = createGodLoop({ db, catalog, allowedTools: listTools().map((tool) => tool.id) });
+  const taskRouter = createTaskRouter({ catalog: { roles: catalog.roles } });
+  const knowledge = createKnowledgeStore({ db });
   workflows.recover();
   const rate = new Map();
 
@@ -60,11 +65,16 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     if (url.pathname === '/api/v1/agents' && request.method === 'GET') return jsonResponse(response, 200, { total: catalog.total_roles, runtime_supported: catalog.runtime_supported_roles.length, registry_only: catalog.registry_only_roles.length, roles: catalog.roles.map(publicRole) });
     if (url.pathname.startsWith('/api/v1/agents/') && request.method === 'GET') { const role = roles.get(parts[3]); if (!role) throw new HttpError(404, 'Agent not found', 'agent_not_found'); return jsonResponse(response, 200, { role: { ...role, prompt: role.prompt } }); }
     if (url.pathname === '/api/v1/tools' && request.method === 'GET') return jsonResponse(response, 200, { tools: (await import('./tools.mjs')).listTools() });
+    if (url.pathname === '/api/v1/task-routing/preview' && request.method === 'POST') return jsonResponse(response, 200, taskRouter.preview({ objective: body.objective, repository: body.repository, requirements: body.requirements }));
+    if (url.pathname === '/api/v1/knowledge' && request.method === 'GET') return jsonResponse(response, 200, { items: knowledge.list(session.workspaceId) });
+    if (url.pathname === '/api/v1/knowledge' && request.method === 'POST') return jsonResponse(response, 201, knowledge.propose({ workspaceId: session.workspaceId, actorId: session.actorId, category: body.category, title: body.title, content: body.content, supersedesId: body.supersedes_id }));
+    if (parts[2] === 'knowledge' && parts[3] && parts[4] === 'approve' && request.method === 'POST') return jsonResponse(response, 200, knowledge.approve({ workspaceId: session.workspaceId, actorId: session.actorId, itemId: parts[3] }));
+    if (parts[2] === 'knowledge' && parts[3] && parts[4] === 'revert' && request.method === 'POST') return jsonResponse(response, 200, knowledge.revert({ workspaceId: session.workspaceId, actorId: session.actorId, itemId: parts[3] }));
     if (url.pathname === '/api/v1/scenarios' && request.method === 'GET') return jsonResponse(response, 200, { scenarios: SCENARIOS });
     if (url.pathname === '/api/v1/providers' && request.method === 'GET') return jsonResponse(response, 200, { providers: providers.list() });
     if (url.pathname === '/api/v1/providers/paperclip/health' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('health', () => providers.get('paperclip').health(), session));
-    if (url.pathname === '/api/v1/providers/paperclip/companies' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverOrganizations', () => providers.get('paperclip').discoverOrganizations(), session));
-    if (parts[2] === 'providers' && parts[3] === 'paperclip' && parts[4] === 'companies' && parts[5] && parts[6] === 'agents' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverAgents', () => providers.get('paperclip').discoverAgents(parts[5]), session));
+    if (url.pathname === '/api/v1/providers/paperclip/companies' && request.method === 'GET') { providers.assertWorkspace(session.workspaceId); return jsonResponse(response, 200, await providerRead('discoverOrganizations', () => providers.get('paperclip').discoverOrganizations(), session)); }
+    if (parts[2] === 'providers' && parts[3] === 'paperclip' && parts[4] === 'companies' && parts[5] && parts[6] === 'agents' && request.method === 'GET') { providers.assertWorkspace(session.workspaceId); providers.assertCompany(parts[5]); return jsonResponse(response, 200, await providerRead('discoverAgents', () => providers.get('paperclip').discoverAgents(parts[5]), session)); }
     if (url.pathname === '/api/v1/olympus/templates' && request.method === 'GET') return jsonResponse(response, 200, { templates: olympus.templates() });
     if (url.pathname === '/api/v1/olympus/council' && request.method === 'POST') return jsonResponse(response, 201, council.ensure({ workspaceId: session.workspaceId, actorId: session.actorId }));
     if (url.pathname === '/api/v1/olympus/council' && request.method === 'GET') return jsonResponse(response, 200, { name: council.name, members: council.members, workflow: ['DISCOVER', 'PLAN', 'CHALLENGE', 'APPROVE', 'IMPLEMENT', 'TEST', 'REVIEW', 'REPAIR', 'VERIFY', 'RELEASE'] });
@@ -79,7 +89,7 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'projects' && request.method === 'POST') return jsonResponse(response, 201, olympus.createProject({ workspaceId: session.workspaceId, actorId: session.actorId, organizationId: parts[4], name: body.name, objective: body.objective, ownerAgentId: body.owner_agent_id, status: body.status }));
     if (parts[2] === 'olympus' && parts[3] === 'organizations' && parts[4] && parts[5] === 'objectives' && request.method === 'POST') return jsonResponse(response, 201, olympus.createObjective({ workspaceId: session.workspaceId, actorId: session.actorId, organizationId: parts[4], title: body.title, description: body.description, status: body.status }));
     if (url.pathname === '/api/v1/god-loops' && request.method === 'GET') return jsonResponse(response, 200, { runs: godLoop.list(session.workspaceId) });
-    if (url.pathname === '/api/v1/god-loops' && request.method === 'POST') return jsonResponse(response, 201, godLoop.create({ workspaceId: session.workspaceId, actorId: session.actorId, objective: body.objective, repositoryScope: body.repository_scope, acceptanceCriteria: body.acceptance_criteria, allowedTools: body.allowed_tools, authorizedAgents: body.authorized_agents, maxIterations: body.max_iterations, maxConcurrentAgents: body.max_concurrent_agents, maxTimeMs: body.max_time_ms, spendingLimit: body.spending_limit, approvalRequired: body.approval_required }));
+    if (url.pathname === '/api/v1/god-loops' && request.method === 'POST') return jsonResponse(response, 201, godLoop.create({ workspaceId: session.workspaceId, actorId: session.actorId, objective: body.objective, repositoryScope: body.repository_scope, acceptanceCriteria: body.acceptance_criteria, allowedTools: body.allowed_tools, authorizedAgents: body.authorized_agents, maxIterations: body.max_iterations, maxConcurrentAgents: body.max_concurrent_agents, maxTimeMs: body.max_time_ms, spendingLimit: body.spending_limit }));
     if (parts[2] === 'god-loops' && parts[3] && !parts[4] && request.method === 'GET') return jsonResponse(response, 200, godLoop.view(session.workspaceId, parts[3]));
     if (parts[2] === 'god-loops' && parts[3] && parts[4] === 'approve' && request.method === 'POST') return jsonResponse(response, 200, godLoop.approve({ workspaceId: session.workspaceId, actorId: session.actorId, runId: parts[3] }));
     if (parts[2] === 'god-loops' && parts[3] && parts[4] === 'events' && request.method === 'POST') return jsonResponse(response, 200, godLoop.appendEvent({ workspaceId: session.workspaceId, actorId: session.actorId, runId: parts[3], eventType: body.event_type, payload: body.payload, iteration: body.iteration }));
@@ -153,6 +163,8 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     olympus,
     council,
     godLoop,
+    taskRouter,
+    knowledge,
     catalog,
     start: () => new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server.address()))),
     close: () => new Promise((resolve, reject) => {

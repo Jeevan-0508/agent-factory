@@ -1,6 +1,6 @@
 # V5 execution plan
 
-Status: M0 approved plan
+Status: V5 implementation and Final GOD LOOP repair in progress
 Date: 2026-11-24
 
 ## Baseline evidence
@@ -14,6 +14,8 @@ At M0, the existing `main` branch passed:
 - `npm run test:e2e`: 12 browser, performance, accessibility, and visual tests.
 
 The public dashboard is static-only and the local API is loopback-first. Paperclip was not installed or executed during M0; the integration assessment is based on the pinned upstream repository and official documentation.
+
+The current branch adds the portable installer, task-routing preview, versioned knowledge control plane, hardened read-only provider boundary, and adversarial GOD LOOP tests. See [the completion matrix](completion-matrix.md) for verified and incomplete capabilities.
 
 ## Milestones and gates
 

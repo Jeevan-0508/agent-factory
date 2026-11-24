@@ -6,6 +6,7 @@
   "description": "A governed 100-role mythic Codex agent command center.",
   "scripts": {
     "build:site": "node scripts/build-site.mjs",
+    "agent-factory": "node scripts/agent-factory.mjs",
     "start:local": "node --experimental-sqlite server/index.mjs",
     "test:runtime": "node --experimental-sqlite --test \"tests/**/*.test.mjs\"",
     "validate": "node scripts/validate-catalog.mjs",
@@ -14,7 +15,9 @@
     "test:e2e:runtime": "playwright test --config=playwright.runtime.config.mjs",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:e2e:report": "playwright show-report",
-    "test:security": "node scripts/test-security.mjs"
+    "test:security": "node scripts/test-security.mjs",
+    "test:portability": "node --test tests/unit/installer.test.mjs",
+    "benchmarks": "node scripts/run-benchmarks.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

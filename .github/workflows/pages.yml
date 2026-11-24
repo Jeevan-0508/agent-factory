@@ -23,10 +23,22 @@ jobs:
         uses: actions/checkout@v4
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Upload static dashboard
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate catalog and build static dashboard
+        run: |
+          npm test
+          npm run validate
+          npm run build:site
+      - name: Upload validated static dashboard
         uses: actions/upload-pages-artifact@v4
         with:
-          path: site
+          path: dist
 
   deploy:
     needs: build

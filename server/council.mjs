@@ -30,10 +30,10 @@ export function createEngineeringCouncil({ olympus }) {
       }
     }
     const existing = new Set(organization.members.map((item) => item.agent_id));
-    const architect = organization.members.find((item) => item.agent_id === 'solution_architect');
+    const architectId = 'solution_architect';
     for (const [agentId, departmentName] of MEMBERS) {
       if (existing.has(agentId)) continue;
-      olympus.recruitMember({ workspaceId, actorId, organizationId: organization.id, agentId, departmentId: departments.get(departmentName)?.id || null, reportsTo: agentId === 'solution_architect' ? null : architect?.agent_id || null, capabilities: ['engineering-council-review'] });
+      olympus.recruitMember({ workspaceId, actorId, organizationId: organization.id, agentId, departmentId: departments.get(departmentName)?.id || null, reportsTo: agentId === architectId ? null : architectId, capabilities: ['engineering-council-review'] });
     }
     const result = olympus.getOrganization(workspaceId, organization.id);
     return { ...result, coordinator: 'Codex', coordinator_note: 'Codex is the coordinating architect for this local workflow; it is not a catalog member or an automatic approval authority.', council_workflow: ['DISCOVER', 'PLAN', 'CHALLENGE', 'APPROVE', 'IMPLEMENT', 'TEST', 'REVIEW', 'REPAIR', 'VERIFY', 'RELEASE'] };

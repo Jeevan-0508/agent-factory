@@ -4,6 +4,8 @@ const PAPERCLIP_UPSTREAM = 'paperclipai/paperclip';
 const PAPERCLIP_INSPECTED_COMMIT = '28aa32e7d7ba72d8f83c03ffd45625c096813e6b';
 const PAPERCLIP_VERSION = 'v2026.609.0';
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const MAX_RESPONSE_BYTES = 1_000_000;
+const READ_ONLY_OPERATIONS = new Set(['health', 'openApi', 'discoverOrganizations', 'discoverAgents', 'getAgent', 'getDashboard', 'getBudget']);
 
 const PROVIDER_METADATA = [
   { id: 'deterministic-local', status: 'configured', network: 'none', credentials: 'not applicable', execution_mode: 'rule-based local contract' },
@@ -19,7 +21,7 @@ function assertId(value, label) {
 function assertBaseUrl(value) {
   let parsed;
   try { parsed = new URL(value); } catch { throw new HttpError(400, 'Paperclip API URL is invalid', 'provider_config_invalid'); }
-  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) throw new HttpError(400, 'Paperclip API URL must be an HTTP(S) origin without credentials or query state', 'provider_config_invalid');
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== '/') throw new HttpError(400, 'Paperclip API URL must be an HTTP(S) origin without credentials, query state, or path', 'provider_config_invalid');
   if (parsed.protocol === 'http:' && !['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)) throw new HttpError(400, 'Non-loopback Paperclip URLs must use HTTPS', 'provider_config_invalid');
   return parsed.href.replace(/\/$/, '');
 }
@@ -38,6 +40,16 @@ function cleanHealth(payload) {
   };
 }
 
+function objectPayload(payload, operation) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new HttpError(502, `Paperclip ${operation} returned an invalid object`, 'provider_response_invalid');
+  return payload;
+}
+
+function arrayPayload(payload, operation) {
+  if (!Array.isArray(payload)) throw new HttpError(502, `Paperclip ${operation} returned an invalid list`, 'provider_response_invalid');
+  return payload;
+}
+
 export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.fetch, timeoutMs = 5_000, expectedVersion = null } = {}) {
   if (typeof fetchImpl !== 'function') throw new HttpError(500, 'Paperclip adapter requires a fetch implementation', 'provider_config_invalid');
   const origin = assertBaseUrl(baseUrl);
@@ -53,9 +65,30 @@ export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.
         method,
         headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...extraHeaders },
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: controller.signal
+        signal: controller.signal,
+        redirect: 'error'
       });
-      const raw = await response.text();
+      const contentLength = Number(response.headers?.get?.('content-length') || response.headers?.get?.('Content-Length') || 0);
+      if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) throw new HttpError(502, 'Paperclip response exceeded the safety limit', 'provider_response_too_large');
+      let raw;
+      if (response.body?.getReader) {
+        const reader = response.body.getReader();
+        const chunks = [];
+        let size = 0;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            size += value.byteLength;
+            if (size > MAX_RESPONSE_BYTES) throw new HttpError(502, 'Paperclip response exceeded the safety limit', 'provider_response_too_large');
+            chunks.push(Buffer.from(value));
+          }
+        } finally { reader.releaseLock?.(); }
+        raw = Buffer.concat(chunks).toString('utf8');
+      } else {
+        raw = await response.text();
+        if (Buffer.byteLength(raw, 'utf8') > MAX_RESPONSE_BYTES) throw new HttpError(502, 'Paperclip response exceeded the safety limit', 'provider_response_too_large');
+      }
       let payload = null;
       try { payload = raw ? JSON.parse(raw) : null; } catch { payload = null; }
       if (!response.ok) throw new HttpError(502, 'Paperclip request failed', 'provider_request_failed', { provider: 'paperclip', status: response.status, route: pathname });
@@ -67,7 +100,7 @@ export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.
   }
 
   async function health() {
-    const healthPayload = cleanHealth(await request('GET', '/api/health'));
+    const healthPayload = cleanHealth(objectPayload(await request('GET', '/api/health'), 'health'));
     if (expectedVersion && healthPayload.version !== expectedVersion) throw new HttpError(412, 'Paperclip version is outside the configured compatibility pin', 'provider_version_mismatch', { expected: expectedVersion, observed: healthPayload.version });
     return { provider: 'paperclip', connected: true, inspected_commit: PAPERCLIP_INSPECTED_COMMIT, ...healthPayload };
   }
@@ -76,12 +109,12 @@ export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.
     id: 'paperclip',
     metadata: { id: 'paperclip', status: 'configured', network: 'server-only', credentials: 'server-side environment only', execution_mode: 'optional external orchestration', upstream: PAPERCLIP_UPSTREAM, inspected_commit: PAPERCLIP_INSPECTED_COMMIT },
     health,
-    async openApi() { return request('GET', '/api/openapi.json'); },
-    async discoverOrganizations() { return request('GET', '/api/companies?scope=accessible'); },
-    async discoverAgents(companyId) { return request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/agents`); },
-    async getAgent(agentId) { return request('GET', `/api/agents/${encodeURIComponent(assertId(agentId, 'agent id'))}`); },
-    async getDashboard(companyId) { return request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/dashboard`); },
-    async getBudget(companyId) { return request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/costs/summary`); },
+    async openApi() { return objectPayload(await request('GET', '/api/openapi.json'), 'openApi'); },
+    async discoverOrganizations() { return arrayPayload(await request('GET', '/api/companies?scope=accessible'), 'discoverOrganizations'); },
+    async discoverAgents(companyId) { return arrayPayload(await request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/agents`), 'discoverAgents'); },
+    async getAgent(agentId) { return objectPayload(await request('GET', `/api/agents/${encodeURIComponent(assertId(agentId, 'agent id'))}`), 'getAgent'); },
+    async getDashboard(companyId) { return objectPayload(await request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/dashboard`), 'getDashboard'); },
+    async getBudget(companyId) { return objectPayload(await request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/costs/summary`), 'getBudget'); },
     async createTask({ companyId, title, description = '', assigneeAgentId, projectId = undefined, goalId = undefined, priority = 'medium' } = {}) {
       if (typeof title !== 'string' || title.length < 1 || title.length > 240) throw new HttpError(400, 'Paperclip task title is invalid', 'provider_input_invalid');
       return request('POST', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/issues`, { title, description, assigneeAgentId: assertId(assigneeAgentId, 'agent id'), ...(projectId ? { projectId: assertId(projectId, 'project id') } : {}), ...(goalId ? { goalId: assertId(goalId, 'goal id') } : {}), priority, status: 'todo' });
@@ -115,6 +148,15 @@ export function createProviderRegistry({ env = process.env, fetchImpl = globalTh
   const hasConfig = Boolean(env.PAPERCLIP_API_URL && env.PAPERCLIP_API_TOKEN);
   const paperclip = enabled && hasConfig ? createPaperclipAdapter({ baseUrl: env.PAPERCLIP_API_URL, token: env.PAPERCLIP_API_TOKEN, fetchImpl, expectedVersion: env.PAPERCLIP_EXPECTED_VERSION || null }) : null;
   const paperclipStatus = enabled && !hasConfig ? 'misconfigured' : paperclip ? 'configured' : 'disabled';
+  const boundWorkspaceId = env.PAPERCLIP_WORKSPACE_ID || null;
+  const boundCompanyId = env.PAPERCLIP_COMPANY_ID || null;
+  function assertWorkspace(workspaceId) {
+    if (!boundWorkspaceId) throw new HttpError(503, 'Paperclip requires an explicit local workspace binding', 'provider_workspace_unbound');
+    if (workspaceId !== boundWorkspaceId) throw new HttpError(403, 'Paperclip is not bound to this workspace', 'provider_workspace_mismatch');
+  }
+  function assertCompany(companyId) {
+    if (boundCompanyId && companyId !== boundCompanyId) throw new HttpError(403, 'Paperclip company is outside the configured binding', 'provider_company_mismatch');
+  }
   return {
     list() { return PROVIDER_METADATA.map((provider) => provider.id === 'paperclip' ? { ...provider, status: paperclipStatus } : { ...provider }); },
     get(providerId) {
@@ -123,8 +165,11 @@ export function createProviderRegistry({ env = process.env, fetchImpl = globalTh
       if (providerId === 'deterministic-local') return { id: 'deterministic-local', metadata: PROVIDER_METADATA[0] };
       throw new HttpError(404, 'Provider not found', 'provider_not_found');
     },
+    assertWorkspace,
+    assertCompany,
     async invoke(providerId, operation, input = {}) {
       if (providerId === 'deterministic-local') throw new HttpError(501, 'Deterministic execution is implemented by the local runtime contract, not a remote provider call', 'provider_not_applicable');
+      if (providerId !== 'deterministic-local' && !READ_ONLY_OPERATIONS.has(operation)) throw new HttpError(403, 'Provider execution operations are disabled; only explicit read-only discovery is permitted', 'provider_operation_not_authorized');
       const provider = this.get(providerId);
       if (typeof provider[operation] !== 'function') throw new HttpError(400, 'Provider operation is not supported', 'provider_operation_not_supported');
       return provider[operation](input);
