@@ -5,6 +5,8 @@ const toast = document.querySelector('#toast');
 const sidebar = document.querySelector('#sidebar');
 const pageLabel = document.querySelector('#page-label');
 const SVG_TAGS = new Set(['svg', 'g', 'circle', 'line', 'rect', 'title']);
+const STATIC_SHOWCASE = location.hostname.endsWith('github.io') || location.port === '4173';
+const COUNCIL_AGENT_IDS = ['solution_architect', 'backend_engineer', 'frontend_engineer', 'security_engineer', 'risk_manager', 'ai_governance_manager', 'qa_test_engineer', 'performance_engineer', 'documentation_writer', 'release_manager'];
 
 const state = {
   data: null,
@@ -42,13 +44,15 @@ const state = {
     organizations: [],
     selected: null
   },
+  council: { status: 'disconnected', loading: false, error: '', data: null },
+  godLoop: { status: 'disconnected', loading: false, error: '', runs: [], selected: null },
   theme: localStorage.getItem('agent-factory-theme') || 'dark',
   experience: localStorage.getItem('agent-factory-experience') || 'command-center',
   graph: null
 };
 
 const viewLabels = {
-  overview: 'Overview', agents: 'Agent explorer', olympus: 'OLYMPUS builder', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', execution: 'Execution console', evaluations: 'Evaluation lab', governance: 'Governance'
+  overview: 'Overview', agents: 'Agent explorer', olympus: 'OLYMPUS builder', council: 'Engineering Council', 'god-loop': 'GOD LOOP console', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', execution: 'Execution console', evaluations: 'Evaluation lab', governance: 'Governance'
 };
 const validViews = new Set(Object.keys(viewLabels));
 if (!validViews.has(state.view)) state.view = 'overview';
@@ -259,7 +263,7 @@ async function runtimeAction(path, method = 'POST', body = {}) {
 
 async function loadOlympus() {
   if (state.olympus.loading) return;
-  if (location.hostname.endsWith('github.io') || location.port === '4173') {
+  if (STATIC_SHOWCASE) {
     state.olympus.status = 'showcase';
     state.olympus.error = 'Backend disabled in the static showcase.';
     return;
@@ -280,6 +284,107 @@ async function loadOlympus() {
     state.olympus.loading = false;
     render();
   }
+}
+
+async function loadCouncil() {
+  if (state.council.loading || STATIC_SHOWCASE) {
+    if (STATIC_SHOWCASE) state.council.status = 'showcase';
+    return;
+  }
+  state.council.loading = true;
+  try {
+    await runtimeRequest('/session');
+    state.council.data = await runtimeRequest('/olympus/council');
+    state.council.status = 'connected';
+  } catch (error) {
+    state.council.status = 'disconnected';
+    state.council.error = error.message;
+  } finally {
+    state.council.loading = false;
+    render();
+  }
+}
+
+async function initializeCouncil() {
+  try {
+    state.council.data = await runtimeAction('/olympus/council', 'POST', {});
+    state.council.status = 'connected';
+    render();
+  } catch { /* runtimeAction reports the bounded error */ }
+}
+
+async function loadGodLoops() {
+  if (state.godLoop.loading || STATIC_SHOWCASE) {
+    if (STATIC_SHOWCASE) state.godLoop.status = 'showcase';
+    return;
+  }
+  state.godLoop.loading = true;
+  try {
+    await runtimeRequest('/session');
+    state.godLoop.runs = (await runtimeRequest('/god-loops')).runs || [];
+    state.godLoop.status = 'connected';
+  } catch (error) {
+    state.godLoop.status = 'disconnected';
+    state.godLoop.error = error.message;
+  } finally {
+    state.godLoop.loading = false;
+    render();
+  }
+}
+
+async function createGodLoop(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  try {
+    const created = await runtimeAction('/god-loops', 'POST', { objective: formData.get('objective'), repository_scope: formData.get('repository_scope'), acceptance_criteria: String(formData.get('acceptance_criteria') || '').split('\n').map((item) => item.trim()).filter(Boolean), allowed_tools: ['schema.validate', 'workflow.validate'], authorized_agents: ['solution_architect', 'qa_test_engineer'], max_iterations: Number(formData.get('max_iterations') || 5), max_concurrent_agents: 2, max_time_ms: 1800000, spending_limit: 0, approval_required: true });
+    state.godLoop.runs = [created, ...state.godLoop.runs];
+    state.godLoop.selected = created;
+    render();
+  } catch { /* runtimeAction reports the bounded error */ }
+}
+
+async function selectGodLoop(runId) {
+  try {
+    state.godLoop.selected = await runtimeRequest(`/god-loops/${runId}`);
+    render();
+  } catch (error) {
+    state.godLoop.error = error.message;
+    render();
+  }
+}
+
+async function approveGodLoop(runId) {
+  try {
+    state.godLoop.selected = await runtimeAction(`/god-loops/${runId}/approve`, 'POST', {});
+    state.godLoop.runs = state.godLoop.runs.map((run) => run.id === runId ? { ...run, status: 'APPROVED' } : run);
+    render();
+  } catch { /* runtimeAction reports the bounded error */ }
+}
+
+function renderCouncil() {
+  const roles = COUNCIL_AGENT_IDS.map((agentId) => roleById(agentId)).filter(Boolean);
+  const data = state.council.data;
+  return el('div', {}, [
+    pageHeading('Engineering Council', 'Build the builder with accountable roles.', 'The council is a local OLYMPUS organization composed only of catalog identities. Codex coordinates the workflow; humans retain approval and release ownership.', [el('button', { className: 'button primary', type: 'button', disabled: STATIC_SHOWCASE, on: { click: initializeCouncil } }, [STATIC_SHOWCASE ? 'Local runtime required' : 'Initialize council'])]),
+    el('div', { className: 'callout' }, [el('strong', { text: STATIC_SHOWCASE ? 'Showcase mode. ' : 'Structured review mode. ' }), STATIC_SHOWCASE ? 'The public Pages build lists the council roster but does not create local organizations.' : 'The council API creates an auditable local organization; membership never grants execution permissions.', state.council.error ? ` (${state.council.error})` : '']),
+    el('div', { className: 'council-workflow' }, ['DISCOVER', 'PLAN', 'CHALLENGE', 'APPROVE', 'IMPLEMENT', 'TEST', 'REVIEW', 'REPAIR', 'VERIFY', 'RELEASE'].map((step, index) => el('div', { className: 'council-step' }, [el('span', { text: String(index + 1).padStart(2, '0') }), el('strong', { text: step })]))),
+    el('div', { className: 'council-grid' }, roles.map((role) => el('article', { className: 'panel council-card' }, [el('div', { className: 'eyebrow', text: role.family }), el('h2', { text: role.title }), el('p', { text: role.mission }), badge(role.runtime ? 'Typed runtime' : 'Registry only', role.runtime ? 'green' : 'amber'), button('Open profile', 'small ghost', () => openRole(role.name))]))),
+    data ? el('div', { className: 'callout' }, [el('strong', { text: `${data.counts.members} council members initialized. ` }), 'Codex remains the coordinating architect, not an automatic approver.']) : null
+  ]);
+}
+
+function renderGodLoop() {
+  const connected = state.godLoop.status === 'connected';
+  const selected = state.godLoop.selected;
+  return el('div', {}, [
+    pageHeading('GOD LOOP console', 'Bounded improvement, durable evidence.', 'Create an approval-gated engineering loop with hard iteration, concurrency, time, and spending limits. It never recursively spawns itself.'),
+    el('div', { className: 'callout' }, [el('strong', { text: connected ? 'Local control plane connected. ' : 'Showcase mode. ' }), connected ? 'This console records plans and evidence events; execution adapters remain separately authorized.' : 'The public dashboard does not create or run local loops. Start the local runtime for the governed control plane.', state.godLoop.error ? ` (${state.godLoop.error})` : '']),
+    el('div', { className: 'god-loop-layout' }, [
+      el('section', { className: 'panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'NEW BOUNDED RUN' }), el('h2', { text: 'Define the objective' }), el('p', { text: 'Approval is required before evidence events can advance.' })])]), el('form', { className: 'olympus-form', on: { submit: createGodLoop } }, [el('label', {}, [el('span', { text: 'Objective' }), el('input', { name: 'objective', required: true, maxLength: 2000, placeholder: 'e.g. repair a verified accessibility defect' })]), el('label', {}, [el('span', { text: 'Repository scope' }), el('input', { name: 'repository_scope', required: true, maxLength: 2000, placeholder: 'dashboard/app.js' })]), el('label', {}, [el('span', { text: 'Acceptance criteria (one per line)' }), el('textarea', { name: 'acceptance_criteria', required: true, rows: 4, placeholder: 'Regression test passes\nNo serious accessibility regression' })]), el('label', {}, [el('span', { text: 'Maximum iterations' }), el('input', { name: 'max_iterations', type: 'number', min: 1, max: 20, value: 5 })]), el('button', { className: 'button primary', type: 'submit', disabled: !connected }, [connected ? 'Create approval-gated loop' : 'Start local runtime first'])])]),
+      el('section', { className: 'panel' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'DURABLE RUNS' }), el('h2', { text: `${state.godLoop.runs.length} recorded` }), el('p', { text: 'Terminal runs cannot be overwritten or re-approved.' })]), button('Refresh', 'small ghost', loadGodLoops)]), state.godLoop.runs.length ? el('div', { className: 'olympus-org-list' }, state.godLoop.runs.map((run) => el('button', { className: `olympus-org-row ${selected?.id === run.id ? 'is-selected' : ''}`, type: 'button', on: { click: () => selectGodLoop(run.id) } }, [el('strong', { text: run.objective }), el('span', { text: `${run.status} · ${run.current_iteration}/${run.max_iterations} iterations · $${run.spending_limit} limit` })]))) : el('div', { className: 'empty-state' }, [el('h3', { text: connected ? 'No loop runs yet' : 'No remote loop data' }), el('p', { text: 'The static surface intentionally leaves execution disconnected.' })])])
+    ]),
+    selected ? el('section', { className: 'panel olympus-detail' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'RUN DETAIL' }), el('h2', { text: selected.status }), el('p', { text: selected.objective })]), selected.status === 'AWAITING_APPROVAL' ? button('Approve plan', 'small primary', () => approveGodLoop(selected.id)) : badge('Read-only evidence', 'blue')]), el('div', { className: 'olympus-stat-grid' }, [['Iteration', `${selected.current_iteration}/${selected.max_iterations}`], ['Concurrency', selected.max_concurrent_agents], ['Time limit', `${Math.round(selected.max_time_ms / 60000)} min`], ['Spend limit', `$${selected.spending_limit}`]].map(([label, value]) => el('div', { className: 'check-card' }, [el('span', { className: 'eyebrow', text: label }), el('strong', { text: String(value) })]))), el('div', { className: 'callout' }, [el('strong', { text: 'Stop rule: ' }), selected.stop_reason || 'The loop remains bounded by approval, iteration, time, spending, security, cancellation, and dependency conditions.'])]) : null
+  ]);
 }
 
 async function olympusCreate(event) {
@@ -644,6 +749,14 @@ function render() {
   else if (state.view === 'olympus') {
     app.replaceChildren(renderOlympus());
     if (state.olympus.status === 'disconnected' && !state.olympus.loading) loadOlympus();
+  }
+  else if (state.view === 'council') {
+    app.replaceChildren(renderCouncil());
+    if (state.council.status === 'disconnected' && !state.council.loading) loadCouncil();
+  }
+  else if (state.view === 'god-loop') {
+    app.replaceChildren(renderGodLoop());
+    if (state.godLoop.status === 'disconnected' && !state.godLoop.loading) loadGodLoops();
   }
   else if (state.view === 'agent-detail') app.replaceChildren(renderAgentDetail());
   else if (state.view === 'prompts') app.replaceChildren(renderPrompts());

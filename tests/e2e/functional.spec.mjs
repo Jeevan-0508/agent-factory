@@ -62,6 +62,19 @@ test('search, prompt studio, workflow designer, evaluation lab, governance, and 
   await expect(page.locator('#experience-select')).toHaveValue('mythology-atlas');
 });
 
+test('OLYMPUS builder, Engineering Council, and GOD LOOP console expose safe showcase boundaries', async ({ page }) => {
+  await loadApp(page);
+  await page.locator('[data-view="olympus"]').click();
+  await expect(page.locator('#app')).toContainText('Assemble a governed organization');
+  await expect(page.locator('#app')).toContainText('public dashboard intentionally does not expose SQLite');
+  await page.locator('[data-view="council"]').click();
+  await expect(page.locator('.council-card')).toHaveCount(10);
+  await expect(page.locator('#app')).toContainText('Codex coordinates the workflow');
+  await page.locator('[data-view="god-loop"]').click();
+  await expect(page.locator('#app')).toContainText('Bounded improvement, durable evidence');
+  await expect(page.locator('#app')).toContainText('public dashboard does not create or run local loops');
+});
+
 test('Galaxy renders evidence-backed relationships and an accessible directory', async ({ page }) => {
   await loadApp(page);
   await chooseExperience(page, 'agent-galaxy');

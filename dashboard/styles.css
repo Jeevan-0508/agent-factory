@@ -149,6 +149,15 @@ a { color: inherit; text-decoration: none; }
 .olympus-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .olympus-stat-grid .check-card { min-height: 94px; display: grid; align-content: space-between; }
 .olympus-stat-grid .check-card strong { font-size: 28px; }
+.council-workflow { display: grid; grid-template-columns: repeat(10, minmax(84px, 1fr)); gap: 8px; margin: 17px 0; overflow-x: auto; }
+.council-step { display: grid; gap: 9px; min-height: 62px; border: 1px solid var(--line); border-radius: 9px; padding: 10px; background: var(--panel); }
+.council-step span { color: var(--blue); font: 700 10px/1 var(--mono); }
+.council-step strong { font-size: 10px; }
+.council-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+.council-card { display: grid; gap: 10px; }
+.council-card h2 { margin: 0; font-size: 16px; }
+.council-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.god-loop-layout { display: grid; grid-template-columns: minmax(0, .9fr) minmax(320px, 1.1fr); gap: 17px; margin-top: 17px; }
 .panel { border: 1px solid var(--line); background: var(--panel); border-radius: 13px; padding: 19px; min-width: 0; }
 .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .panel-header h2, .panel-header h3 { margin: 0; font-size: 15px; }
@@ -275,7 +284,7 @@ html[data-theme="light"] .prompt-box { background: #f3f6fb; color: #324056; }
   .topbar { padding-inline: 20px; }
   .page-stack { padding-inline: 20px; }
   .agent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hero, .dashboard-grid, .detail-grid, .olympus-layout { grid-template-columns: 1fr; }
+  .hero, .dashboard-grid, .detail-grid, .olympus-layout, .god-loop-layout { grid-template-columns: 1fr; }
   .minimal-surface, .cyber-surface, .glass-surface, .galaxy-surface, .atlas-surface, .retro-surface, .brutalist-surface { margin-inline: -20px; }
 }
 @media (max-width: 780px) {
@@ -296,6 +305,7 @@ html[data-theme="light"] .prompt-box { background: #f3f6fb; color: #324056; }
   .agent-grid { grid-template-columns: 1fr; }
   .studio-layout, .workflow-layout { grid-template-columns: 1fr; }
   .olympus-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .council-grid { grid-template-columns: 1fr; }
   .role-list { max-height: 220px; }
   .studio-controls { grid-template-columns: 1fr; }
   .eval-grid, .governance-grid { grid-template-columns: 1fr; }

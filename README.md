@@ -69,6 +69,10 @@ Lifecycle: `DRAFT → VALIDATED → AWAITING_APPROVAL → APPROVED → RUNNING �
 - Agent Galaxy edges derived from shared catalog capabilities or explicit workflow adjacency; decorative connections are not presented as evidence.
 - Mythology Atlas with a visible rule that codename is not capability.
 - V4.1 local runtime with server-controlled authorization, approval transitions, cancellation, timeout, recovery checkpoints, graph validation, audit evidence, and a kill switch.
+- V5 OLYMPUS organization builder with seven templates, workspace isolation, reporting-line cycle checks, catalog-backed membership, projects, objectives, export/import, and activity evidence.
+- OLYMPUS Engineering Council roster using real catalog role IDs, with a documented ten-stage engineering workflow.
+- Bounded GOD LOOP control plane with durable approval-gated runs, hard iteration/concurrency/time/spending limits, non-recursive delegation rules, stop reasons, and evidence events.
+- Optional Paperclip bridge with server-side secret handling, exact documented read-only discovery routes, version gating, timeouts, redacted errors, and deterministic mock fixtures.
 - Security, catalog, runtime, browser, accessibility, and visual regression coverage in CI.
 
 ## Honest limitations
@@ -99,7 +103,9 @@ For the local runtime, run `npm run start:local` and open `http://127.0.0.1:8787
 - [Role catalog](docs/role-catalog.md) · [Prompt library](docs/prompt-library.md) · [Governance](docs/governance.md)
 - [Architecture](docs/architecture.md) · [Workflow lifecycle](docs/workflow-lifecycle.md) · [Runtime API](docs/runtime-api.md)
 - [Security model](docs/security-model.md) · [Database schema](docs/database-schema.md) · [Evaluation methodology](docs/evaluation-methodology.md)
-- [Visual comparison](docs/visual-comparison-v4.md) · [Installation](docs/installation.md) · [Provider adapters](docs/provider-adapters.md)
+- [OLYMPUS builder](docs/olympus.md) · [Engineering Council](docs/engineering-council.md) · [Bounded GOD LOOP](docs/god-loop.md)
+- [V5 integration assessment](docs/v5-integration-assessment.md) · [V5 architecture decision](docs/v5-architecture-decision.md) · [V5 threat model](docs/v5-threat-model.md)
+- [Visual comparison](docs/visual-comparison-v4.md) · [Installation](docs/installation.md) · [Provider adapters](docs/provider-adapters.md) · [Execution adapter investigation](docs/v5-execution-adapter.md)
 
 ## License
 
