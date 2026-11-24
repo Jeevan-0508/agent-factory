@@ -1,0 +1,10 @@
+[
+  {"id":"bug-fix","class":"bug fixing","acceptance":["regression test passes"]},
+  {"id":"feature","class":"feature implementation","acceptance":["feature behavior is tested"]},
+  {"id":"security-review","class":"security review","acceptance":["findings have evidence"]},
+  {"id":"architecture","class":"architecture analysis","acceptance":["decision records tradeoffs"]},
+  {"id":"ui","class":"UI improvement","acceptance":["desktop and mobile checks pass"]},
+  {"id":"documentation","class":"documentation","acceptance":["links and commands are verified"]},
+  {"id":"regression","class":"regression testing","acceptance":["existing tests remain green"]},
+  {"id":"performance","class":"performance analysis","acceptance":["measurements identify a baseline"]}
+]
