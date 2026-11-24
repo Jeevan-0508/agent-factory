@@ -137,6 +137,18 @@ a { color: inherit; text-decoration: none; }
 .metric-value { display: block; font-size: 28px; letter-spacing: -.04em; margin-top: 13px; font-variant-numeric: tabular-nums; }
 .metric-foot { color: var(--subtle); font-size: 10px; margin-top: 3px; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .75fr); gap: 17px; }
+.olympus-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .9fr); gap: 17px; margin-top: 17px; }
+.olympus-form { display: grid; gap: 14px; }
+.olympus-form label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+.olympus-form input, .olympus-form textarea, .olympus-form select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; color: var(--text); background: var(--panel-dark); font: inherit; }
+.olympus-org-list { display: grid; gap: 8px; }
+.olympus-org-row { display: grid; gap: 4px; width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 12px; text-align: left; color: var(--text); background: var(--panel-dark); cursor: pointer; }
+.olympus-org-row:hover, .olympus-org-row.is-selected { border-color: var(--blue); background: var(--panel-hover); }
+.olympus-org-row span { color: var(--muted); font-size: 11px; }
+.olympus-detail { margin-top: 17px; }
+.olympus-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.olympus-stat-grid .check-card { min-height: 94px; display: grid; align-content: space-between; }
+.olympus-stat-grid .check-card strong { font-size: 28px; }
 .panel { border: 1px solid var(--line); background: var(--panel); border-radius: 13px; padding: 19px; min-width: 0; }
 .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .panel-header h2, .panel-header h3 { margin: 0; font-size: 15px; }
@@ -263,7 +275,7 @@ html[data-theme="light"] .prompt-box { background: #f3f6fb; color: #324056; }
   .topbar { padding-inline: 20px; }
   .page-stack { padding-inline: 20px; }
   .agent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hero, .dashboard-grid, .detail-grid { grid-template-columns: 1fr; }
+  .hero, .dashboard-grid, .detail-grid, .olympus-layout { grid-template-columns: 1fr; }
   .minimal-surface, .cyber-surface, .glass-surface, .galaxy-surface, .atlas-surface, .retro-surface, .brutalist-surface { margin-inline: -20px; }
 }
 @media (max-width: 780px) {
@@ -283,6 +295,7 @@ html[data-theme="light"] .prompt-box { background: #f3f6fb; color: #324056; }
   .heading-actions { margin-top: 17px; }
   .agent-grid { grid-template-columns: 1fr; }
   .studio-layout, .workflow-layout { grid-template-columns: 1fr; }
+  .olympus-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .role-list { max-height: 220px; }
   .studio-controls { grid-template-columns: 1fr; }
   .eval-grid, .governance-grid { grid-template-columns: 1fr; }

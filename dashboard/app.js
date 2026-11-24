@@ -34,13 +34,21 @@ const state = {
     events: [],
     evidence: null
   },
+  olympus: {
+    status: 'disconnected',
+    loading: false,
+    error: '',
+    templates: [],
+    organizations: [],
+    selected: null
+  },
   theme: localStorage.getItem('agent-factory-theme') || 'dark',
   experience: localStorage.getItem('agent-factory-experience') || 'command-center',
   graph: null
 };
 
 const viewLabels = {
-  overview: 'Overview', agents: 'Agent explorer', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', execution: 'Execution console', evaluations: 'Evaluation lab', governance: 'Governance'
+  overview: 'Overview', agents: 'Agent explorer', olympus: 'OLYMPUS builder', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', execution: 'Execution console', evaluations: 'Evaluation lab', governance: 'Governance'
 };
 const validViews = new Set(Object.keys(viewLabels));
 if (!validViews.has(state.view)) state.view = 'overview';
@@ -247,6 +255,81 @@ async function runtimeAction(path, method = 'POST', body = {}) {
     render();
     throw error;
   }
+}
+
+async function loadOlympus() {
+  if (state.olympus.loading) return;
+  if (location.hostname.endsWith('github.io') || location.port === '4173') {
+    state.olympus.status = 'showcase';
+    state.olympus.error = 'Backend disabled in the static showcase.';
+    return;
+  }
+  state.olympus.loading = true;
+  state.olympus.error = '';
+  render();
+  try {
+    await runtimeRequest('/session');
+    const [templates, organizations] = await Promise.all([runtimeRequest('/olympus/templates'), runtimeRequest('/olympus/organizations')]);
+    state.olympus.templates = templates.templates || [];
+    state.olympus.organizations = organizations.organizations || [];
+    state.olympus.status = 'connected';
+  } catch (error) {
+    state.olympus.status = 'disconnected';
+    state.olympus.error = error.message;
+  } finally {
+    state.olympus.loading = false;
+    render();
+  }
+}
+
+async function olympusCreate(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  try {
+    const organization = await runtimeAction('/olympus/organizations', 'POST', { name: formData.get('name'), template_id: formData.get('template_id'), objective: formData.get('objective'), budget_limit: 0 });
+    state.olympus.organizations = [organization, ...state.olympus.organizations.filter((item) => item.id !== organization.id)];
+    state.olympus.selected = organization;
+    showToast('OLYMPUS organization created');
+    render();
+  } catch { /* runtimeAction reports the bounded error */ }
+}
+
+async function olympusSelect(organizationId) {
+  try {
+    state.olympus.selected = await runtimeRequest(`/olympus/organizations/${organizationId}`);
+    render();
+  } catch (error) {
+    state.olympus.error = error.message;
+    render();
+  }
+}
+
+function renderOlympus() {
+  const runtimeReady = state.olympus.status === 'connected';
+  const templates = state.olympus.templates.length ? state.olympus.templates : [{ id: '', name: 'Connect the local runtime to load templates', objective: '' }];
+  const selected = state.olympus.selected;
+  return el('div', {}, [
+    pageHeading('OLYMPUS builder', 'Assemble a governed organization.', 'Create a local workspace organization from a bounded template, recruit catalog roles, and inspect reporting lines without changing execution permissions.'),
+    el('div', { className: 'callout' }, [el('strong', { text: runtimeReady ? 'Local runtime connected. ' : 'Showcase mode. ' }), runtimeReady ? 'Organization state is stored in the local SQLite workspace.' : 'The public dashboard intentionally does not expose SQLite or backend execution. Start the local runtime to use this builder.', state.olympus.error ? ` (${state.olympus.error})` : '']),
+    el('div', { className: 'olympus-layout' }, [
+      el('section', { className: 'panel' }, [
+        el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'NATIVE ORGANIZATION MODEL' }), el('h2', { text: 'Create an organization' }), el('p', { text: 'Templates create departments only. Catalog runtime status remains authoritative.' })]), badge(runtimeReady ? 'Ready' : 'Local only', runtimeReady ? 'green' : 'amber')]),
+        el('form', { className: 'olympus-form', on: { submit: olympusCreate } }, [
+          el('label', {}, [el('span', { text: 'Organization name' }), el('input', { name: 'name', required: true, maxLength: 120, placeholder: 'e.g. Olympus engineering' })]),
+          el('label', {}, [el('span', { text: 'Template' }), el('select', { name: 'template_id', required: true, disabled: !runtimeReady }, templates.map((template) => el('option', { value: template.id, text: template.name })))]),
+          el('label', {}, [el('span', { text: 'Objective' }), el('textarea', { name: 'objective', rows: 4, required: true, maxLength: 1000, placeholder: 'State the bounded organizational objective.' })]),
+          el('button', { className: 'button primary', type: 'submit', disabled: !runtimeReady }, [runtimeReady ? 'Create local organization' : 'Start local runtime first'])
+        ])
+      ]),
+      el('section', { className: 'panel' }, [
+        el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'WORKSPACE ORGANIZATIONS' }), el('h2', { text: `${state.olympus.organizations.length} organizations` }), el('p', { text: 'Workspace-scoped records with activity evidence.' })]), button('Refresh', 'small ghost', loadOlympus)]),
+        state.olympus.organizations.length ? el('div', { className: 'olympus-org-list' }, state.olympus.organizations.map((organization) => el('button', { className: `olympus-org-row ${selected?.id === organization.id ? 'is-selected' : ''}`, type: 'button', on: { click: () => olympusSelect(organization.id) } }, [el('strong', { text: organization.name }), el('span', { text: `${organization.member_count} members · ${organization.template_id}` })]))) : el('div', { className: 'empty-state' }, [el('h3', { text: runtimeReady ? 'No organizations yet' : 'No remote organization data' }), el('p', { text: runtimeReady ? 'Create the first organization from a template.' : 'This static showcase keeps local organization state private.' })])
+      ])
+    ]),
+    selected ? el('section', { className: 'panel olympus-detail' }, [el('div', { className: 'panel-header' }, [el('div', {}, [el('div', { className: 'eyebrow', text: 'ORGANIZATION DETAIL' }), el('h2', { text: selected.name }), el('p', { text: selected.objective })]), button('Export JSON', 'small ghost', () => downloadText(`${selected.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`, JSON.stringify({ schema_version: 1, organization: selected }, null, 2))) ]), el('div', { className: 'olympus-stat-grid' }, [['Departments', selected.counts?.departments ?? selected.departments?.length ?? 0], ['Members', selected.counts?.members ?? selected.members?.length ?? 0], ['Typed runtime', selected.counts?.typed_runtime ?? 0], ['Registry only', selected.counts?.registry_only ?? 0]].map(([label, value]) => el('div', { className: 'check-card' }, [el('span', { className: 'eyebrow', text: label }), el('strong', { text: String(value) })]))), el('div', { className: 'callout' }, [el('strong', { text: 'Promotion boundary: ' }), 'OLYMPUS can arrange catalog roles and reporting lines, but cannot grant execution capability or convert a registry-only role into a typed runtime.'])]) : null,
+    !runtimeReady && state.olympus.loading ? el('div', { className: 'loading-state' }, [el('span', { className: 'spinner' }), el('p', { text: 'Checking local runtime…' })]) : null
+  ]);
 }
 
 function parseRuntimeInput(value) {
@@ -558,6 +641,10 @@ function render() {
   updateNav();
   if (state.view === 'overview') app.replaceChildren(renderOverview());
   else if (state.view === 'agents') app.replaceChildren(renderAgents());
+  else if (state.view === 'olympus') {
+    app.replaceChildren(renderOlympus());
+    if (state.olympus.status === 'disconnected' && !state.olympus.loading) loadOlympus();
+  }
   else if (state.view === 'agent-detail') app.replaceChildren(renderAgentDetail());
   else if (state.view === 'prompts') app.replaceChildren(renderPrompts());
   else if (state.view === 'workflows') app.replaceChildren(renderWorkflows());
