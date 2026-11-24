@@ -37,6 +37,21 @@ test('portable Codex installer is explicit, project-scoped, reversible, and does
   assert.equal(fs.existsSync(path.join(target, '.codex', 'agents', 'solution_architect.toml')), false);
 });
 
+test('rollback removes roles introduced by an update and restores the prior manifest', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-factory-rollback-'));
+  run('install', '--target', target, '--roles', 'solution_architect', '--apply');
+  const before = JSON.parse(fs.readFileSync(path.join(target, '.codex', 'agent-factory-manifest.json'), 'utf8'));
+
+  run('update', '--target', target, '--roles', 'solution_architect,qa_test_engineer', '--apply');
+  assert.equal(fs.existsSync(path.join(target, '.codex', 'agents', 'qa_test_engineer.toml')), true);
+
+  run('rollback', '--target', target, '--apply');
+
+  assert.equal(fs.existsSync(path.join(target, '.codex', 'agents', 'qa_test_engineer.toml')), false);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(target, '.codex', 'agent-factory-manifest.json'), 'utf8')), before);
+  assert.deepEqual(JSON.parse(run('validate', '--target', target)), { ok: true, files: 1, errors: [] });
+});
+
 test('discover runtime roles is catalog-backed', () => {
   const discovered = JSON.parse(run('discover', '--runtime'));
   assert.equal(discovered.total, 30);

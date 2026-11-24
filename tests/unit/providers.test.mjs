@@ -12,6 +12,34 @@ test('Paperclip is disabled unless explicitly enabled with server-side configura
   await assert.rejects(Promise.resolve().then(() => registry.get('paperclip').health()), (error) => error.code === 'provider_disabled');
 });
 
+test('enabled Paperclip rejects missing or mismatched bindings before upstream calls', async () => {
+  const baseEnv = { PAPERCLIP_ENABLED: 'true', PAPERCLIP_API_URL: 'https://paperclip.example.test', PAPERCLIP_API_TOKEN: 'server-token-value' };
+  const cases = [
+    { env: { ...baseEnv, PAPERCLIP_COMPANY_ID: 'company-a' }, operation: 'health', input: {}, code: 'provider_workspace_unbound' },
+    { env: { ...baseEnv, PAPERCLIP_WORKSPACE_ID: 'local-workspace' }, operation: 'discoverOrganizations', input: {}, code: 'provider_company_unbound' },
+    { env: { ...baseEnv, PAPERCLIP_WORKSPACE_ID: 'local-workspace', PAPERCLIP_COMPANY_ID: 'company-a' }, operation: 'discoverAgents', input: { companyId: 'company-b' }, code: 'provider_company_mismatch' }
+  ];
+
+  for (const testCase of cases) {
+    const calls = [];
+    const registry = createProviderRegistry({ env: testCase.env, fetchImpl: async (...args) => { calls.push(args); return response(200, []); } });
+    await assert.rejects(registry.invoke('paperclip', testCase.operation, testCase.input), (error) => error.code === testCase.code);
+    assert.equal(calls.length, 0);
+  }
+});
+
+test('Paperclip organization discovery exposes only the explicitly bound company', async () => {
+  const calls = [];
+  const registry = createProviderRegistry({
+    env: { PAPERCLIP_ENABLED: 'true', PAPERCLIP_API_URL: 'https://paperclip.example.test', PAPERCLIP_API_TOKEN: 'server-token-value', PAPERCLIP_WORKSPACE_ID: 'local-workspace', PAPERCLIP_COMPANY_ID: 'company-a' },
+    fetchImpl: async (url, options) => { calls.push({ url, options }); return response(200, [{ id: 'company-a', name: 'Bound' }, { id: 'company-b', name: 'Foreign' }]); }
+  });
+
+  const organizations = await registry.invoke('paperclip', 'discoverOrganizations');
+  assert.deepEqual(organizations, [{ id: 'company-a', name: 'Bound' }]);
+  assert.equal(calls.length, 1);
+});
+
 test('Paperclip adapter uses exact documented routes and never exposes the bearer token', async () => {
   const calls = [];
   const adapter = createPaperclipAdapter({

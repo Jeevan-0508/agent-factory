@@ -92,17 +92,24 @@ function readManifest(target, scope = 'project') {
 
 function planInstall(target, selected, replace = false, scope = 'project') {
   const existing = readManifest(target, scope);
+  const manifestFile = manifestPath(target, scope);
   const files = selected.map((role) => ({ role: role.name, file: path.posix.join(layout(target, scope).prefix, `${role.name}.toml`), content: agentToml(role) }));
   const conflicts = files.filter((item) => fs.existsSync(path.join(target, item.file)) && !replace);
   const unmanaged = files.filter((item) => fs.existsSync(path.join(target, item.file)) && !existing.files[item.file]);
   if (conflicts.length) throw new Error(`Refusing to overwrite existing file(s): ${conflicts.map((item) => item.file).join(', ')}. Use update for manifest-owned files or review the target manually.`);
   if (unmanaged.length) throw new Error(`Refusing to overwrite unmanaged file(s): ${unmanaged.map((item) => item.file).join(', ')}`);
-  return { files, existing };
+  return { files, existing, manifestFile, manifestExists: fs.existsSync(manifestFile) };
 }
 
-function backup(target, files) {
+function backup(target, files, manifest, manifestFile, manifestExists) {
   const backupDir = path.join(target, '.agent-factory', 'backups', new Date().toISOString().replaceAll(':', '-'));
   fs.mkdirSync(backupDir, { recursive: true });
+  const snapshot = {
+    version: 1,
+    manifest_exists: manifestExists,
+    manifest_content: manifestExists ? fs.readFileSync(manifestFile, 'utf8') : null
+  };
+  fs.writeFileSync(path.join(backupDir, 'state.json'), `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');
   for (const file of files) {
     const source = path.join(target, file);
     if (fs.existsSync(source)) {
@@ -117,7 +124,7 @@ function backup(target, files) {
 function writeInstall(target, selected, replace = false, scope = 'project') {
   const plan = planInstall(target, selected, replace, scope);
   const changed = plan.files.map((item) => item.file);
-  const backupDir = replace ? backup(target, changed) : null;
+  const backupDir = replace ? backup(target, changed, plan.existing, plan.manifestFile, plan.manifestExists) : null;
   for (const item of plan.files) {
     const file = path.join(target, item.file);
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -167,11 +174,25 @@ function rollback(target, scope = 'project') {
   if (!manifest.backup) throw new Error('No backup is recorded in the manifest.');
   const backupDir = path.join(target, manifest.backup);
   if (!fs.existsSync(backupDir)) throw new Error('The recorded backup directory is missing.');
+  const stateFile = path.join(backupDir, 'state.json');
+  if (!fs.existsSync(stateFile)) throw new Error('The recorded backup snapshot is missing.');
+  const snapshot = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  if (snapshot.version !== 1 || typeof snapshot.manifest_exists !== 'boolean') throw new Error('The recorded backup snapshot is invalid.');
+  const priorManifest = snapshot.manifest_exists ? JSON.parse(snapshot.manifest_content) : { version: 1, files: {} };
+  const priorFiles = new Set(Object.keys(priorManifest.files || {}));
   for (const file of Object.keys(manifest.files)) {
+    if (priorFiles.has(file)) continue;
+    const destination = path.join(target, file);
+    if (fs.existsSync(destination)) fs.rmSync(destination);
+  }
+  for (const file of priorFiles) {
     const source = path.join(backupDir, file);
     const destination = path.join(target, file);
     if (fs.existsSync(source)) { fs.mkdirSync(path.dirname(destination), { recursive: true }); fs.copyFileSync(source, destination); }
   }
+  const manifestFile = manifestPath(target, scope);
+  if (snapshot.manifest_exists) fs.writeFileSync(manifestFile, snapshot.manifest_content, 'utf8');
+  else if (fs.existsSync(manifestFile)) fs.rmSync(manifestFile);
   return backupDir;
 }
 

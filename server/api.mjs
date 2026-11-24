@@ -19,7 +19,7 @@ import { HttpError, jsonResponse, readJson, id, now } from './util.mjs';
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
-export function createApp({ root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), dataDirectory = path.join(root, '.data'), port = Number(process.env.PORT || 8787) } = {}) {
+export function createApp({ root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), dataDirectory = path.join(root, '.data'), port = Number(process.env.PORT || 8787), providerEnv = process.env, providerFetch = globalThis.fetch } = {}) {
   const db = openDatabase(path.join(dataDirectory, 'agent-factory.sqlite'), path.join(root, 'server', 'migrations'));
   const { catalog, roles } = loadCatalog(root);
   const auth = createAuth(db);
@@ -33,7 +33,7 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
   };
   const runtime = createRuntime({ db, catalog: { catalog, roles }, killSwitch: () => killSwitch, grantResolver: trustedGrantResolver });
   const workflows = createWorkflowEngine({ db, catalog: { catalog, roles }, runtime, killSwitch: () => killSwitch });
-  const providers = createProviderRegistry();
+  const providers = createProviderRegistry({ env: providerEnv, fetchImpl: providerFetch });
   const olympus = createOlympus({ db, catalog });
   const council = createEngineeringCouncil({ olympus });
   const godLoop = createGodLoop({ db, catalog, allowedTools: listTools().map((tool) => tool.id) });
@@ -72,9 +72,9 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     if (parts[2] === 'knowledge' && parts[3] && parts[4] === 'revert' && request.method === 'POST') return jsonResponse(response, 200, knowledge.revert({ workspaceId: session.workspaceId, actorId: session.actorId, itemId: parts[3] }));
     if (url.pathname === '/api/v1/scenarios' && request.method === 'GET') return jsonResponse(response, 200, { scenarios: SCENARIOS });
     if (url.pathname === '/api/v1/providers' && request.method === 'GET') return jsonResponse(response, 200, { providers: providers.list() });
-    if (url.pathname === '/api/v1/providers/paperclip/health' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('health', () => providers.get('paperclip').health(), session));
-    if (url.pathname === '/api/v1/providers/paperclip/companies' && request.method === 'GET') { providers.assertWorkspace(session.workspaceId); return jsonResponse(response, 200, await providerRead('discoverOrganizations', () => providers.get('paperclip').discoverOrganizations(), session)); }
-    if (parts[2] === 'providers' && parts[3] === 'paperclip' && parts[4] === 'companies' && parts[5] && parts[6] === 'agents' && request.method === 'GET') { providers.assertWorkspace(session.workspaceId); providers.assertCompany(parts[5]); return jsonResponse(response, 200, await providerRead('discoverAgents', () => providers.get('paperclip').discoverAgents(parts[5]), session)); }
+    if (url.pathname === '/api/v1/providers/paperclip/health' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('health', () => { providers.assertPaperclipReady(session.workspaceId); return providers.get('paperclip').health(); }, session));
+    if (url.pathname === '/api/v1/providers/paperclip/companies' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverOrganizations', () => { providers.assertPaperclipReady(session.workspaceId); return providers.get('paperclip').discoverOrganizations(); }, session));
+    if (parts[2] === 'providers' && parts[3] === 'paperclip' && parts[4] === 'companies' && parts[5] && parts[6] === 'agents' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverAgents', () => { providers.assertPaperclipReady(session.workspaceId); providers.assertCompany(parts[5]); return providers.get('paperclip').discoverAgents(parts[5]); }, session));
     if (url.pathname === '/api/v1/olympus/templates' && request.method === 'GET') return jsonResponse(response, 200, { templates: olympus.templates() });
     if (url.pathname === '/api/v1/olympus/council' && request.method === 'POST') return jsonResponse(response, 201, council.ensure({ workspaceId: session.workspaceId, actorId: session.actorId }));
     if (url.pathname === '/api/v1/olympus/council' && request.method === 'GET') return jsonResponse(response, 200, { name: council.name, members: council.members, workflow: ['DISCOVER', 'PLAN', 'CHALLENGE', 'APPROVE', 'IMPLEMENT', 'TEST', 'REVIEW', 'REPAIR', 'VERIFY', 'RELEASE'] });

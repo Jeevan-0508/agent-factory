@@ -56,7 +56,7 @@ function arrayPayload(payload, operation) {
   return payload;
 }
 
-export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.fetch, timeoutMs = 5_000, expectedVersion = null } = {}) {
+export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.fetch, timeoutMs = 5_000, expectedVersion = null, beforeRequest = () => {}, boundCompanyId = null } = {}) {
   if (typeof fetchImpl !== 'function') throw new HttpError(500, 'Paperclip adapter requires a fetch implementation', 'provider_config_invalid');
   const origin = assertBaseUrl(baseUrl);
   if (typeof token !== 'string' || token.length < 8 || token.length > 4096) throw new HttpError(400, 'Paperclip API token is invalid', 'provider_config_invalid');
@@ -64,6 +64,7 @@ export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.
 
   async function request(method, pathname, body = undefined, extraHeaders = {}) {
     if (!pathname.startsWith('/api/') || pathname.includes('..')) throw new HttpError(500, 'Paperclip adapter attempted an invalid route', 'provider_route_invalid');
+    beforeRequest();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -116,8 +117,15 @@ export function createPaperclipAdapter({ baseUrl, token, fetchImpl = globalThis.
     metadata: { id: 'paperclip', status: 'configured', network: 'server-only', credentials: 'server-side environment only', execution_mode: 'optional external orchestration', upstream: PAPERCLIP_UPSTREAM, inspected_commit: PAPERCLIP_INSPECTED_COMMIT },
     health,
     async openApi() { return objectPayload(await request('GET', '/api/openapi.json'), 'openApi'); },
-    async discoverOrganizations() { return arrayPayload(await request('GET', '/api/companies?scope=accessible'), 'discoverOrganizations'); },
-    async discoverAgents(companyId) { return arrayPayload(await request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/agents`), 'discoverAgents'); },
+    async discoverOrganizations() {
+      const organizations = arrayPayload(await request('GET', '/api/companies?scope=accessible'), 'discoverOrganizations');
+      return boundCompanyId ? organizations.filter((organization) => organization?.id === boundCompanyId) : organizations;
+    },
+    async discoverAgents(companyId) {
+      const safeCompanyId = assertId(companyId, 'company id');
+      if (boundCompanyId && safeCompanyId !== boundCompanyId) throw new HttpError(403, 'Paperclip company is outside the configured binding', 'provider_company_mismatch');
+      return arrayPayload(await request('GET', `/api/companies/${encodeURIComponent(safeCompanyId)}/agents`), 'discoverAgents');
+    },
     async getAgent(agentId) { return objectPayload(await request('GET', `/api/agents/${encodeURIComponent(assertId(agentId, 'agent id'))}`), 'getAgent'); },
     async getDashboard(companyId) { return objectPayload(await request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/dashboard`), 'getDashboard'); },
     async getBudget(companyId) { return objectPayload(await request('GET', `/api/companies/${encodeURIComponent(assertId(companyId, 'company id'))}/costs/summary`), 'getBudget'); },
@@ -152,10 +160,16 @@ export function createMockPaperclipAdapter({ calls = [] } = {}) {
 export function createProviderRegistry({ env = process.env, fetchImpl = globalThis.fetch, mockAdapter = null } = {}) {
   const enabled = env.PAPERCLIP_ENABLED === 'true';
   const hasConfig = Boolean(env.PAPERCLIP_API_URL && env.PAPERCLIP_API_TOKEN);
-  const paperclip = enabled && hasConfig ? createPaperclipAdapter({ baseUrl: env.PAPERCLIP_API_URL, token: env.PAPERCLIP_API_TOKEN, fetchImpl, expectedVersion: env.PAPERCLIP_EXPECTED_VERSION || null }) : null;
-  const paperclipStatus = enabled && !hasConfig ? 'misconfigured' : paperclip ? 'configured' : 'disabled';
   const boundWorkspaceId = env.PAPERCLIP_WORKSPACE_ID || null;
   const boundCompanyId = env.PAPERCLIP_COMPANY_ID || null;
+  function assertBindings() {
+    if (!enabled) throw new HttpError(503, 'Paperclip integration is disabled or not configured', 'provider_disabled');
+    if (!hasConfig) throw new HttpError(503, 'Paperclip integration is disabled or not configured', 'provider_disabled');
+    if (!boundWorkspaceId) throw new HttpError(503, 'Paperclip requires an explicit local workspace binding', 'provider_workspace_unbound');
+    if (!boundCompanyId) throw new HttpError(503, 'Paperclip requires an explicit company binding', 'provider_company_unbound');
+  }
+  const paperclip = enabled && hasConfig ? createPaperclipAdapter({ baseUrl: env.PAPERCLIP_API_URL, token: env.PAPERCLIP_API_TOKEN, fetchImpl, expectedVersion: env.PAPERCLIP_EXPECTED_VERSION || null, beforeRequest: assertBindings, boundCompanyId }) : null;
+  const paperclipStatus = !enabled ? 'disabled' : !hasConfig || !boundWorkspaceId || !boundCompanyId ? 'misconfigured' : paperclip ? 'configured' : 'disabled';
   function assertWorkspace(workspaceId) {
     if (!boundWorkspaceId) throw new HttpError(503, 'Paperclip requires an explicit local workspace binding', 'provider_workspace_unbound');
     if (workspaceId !== boundWorkspaceId) throw new HttpError(403, 'Paperclip is not bound to this workspace', 'provider_workspace_mismatch');
@@ -173,9 +187,11 @@ export function createProviderRegistry({ env = process.env, fetchImpl = globalTh
     },
     assertWorkspace,
     assertCompany,
+    assertPaperclipReady: (workspaceId) => { assertBindings(); assertWorkspace(workspaceId); assertCompany(boundCompanyId); },
     async invoke(providerId, operation, input = {}) {
       if (providerId === 'deterministic-local') throw new HttpError(501, 'Deterministic execution is implemented by the local runtime contract, not a remote provider call', 'provider_not_applicable');
       if (providerId !== 'deterministic-local' && !READ_ONLY_OPERATIONS.has(operation)) throw new HttpError(403, 'Provider execution operations are disabled; only explicit read-only discovery is permitted', 'provider_operation_not_authorized');
+      if (providerId === 'paperclip') assertBindings();
       const provider = this.get(providerId);
       if (typeof provider[operation] !== 'function') throw new HttpError(400, 'Provider operation is not supported', 'provider_operation_not_supported');
       const inputKey = PARAMETERIZED_READ_ONLY_OPERATIONS.get(operation);

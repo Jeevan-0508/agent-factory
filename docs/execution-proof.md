@@ -43,3 +43,14 @@ The later project-scoped integration check used the current Codex desktop sessio
 The cross-review wave used `security_engineer` / Confucius (`01a20eb0-6181-7f41-94c0-09db64a5314e`) and `qa_test_engineer` / Laplace (`01a20eb0-6064-73e0-8cbb-db010cdc50f6`). It found and closed bounded gaps: configured company enforcement for parameterized provider reads, returned-agent company validation including missing ownership metadata, direct hostile-origin session-bootstrap coverage, and the documented eight-hour cookie lifetime. The final targeted repair run passed **14/14** tests. The security specialist made no source edits because its reproduced behavior is explicitly part of the documented local trust boundary.
 
 This proves project-scoped profile discovery, native specialist delegation, bounded repair contribution, and independent review inside a normal Codex session. It does **not** prove autonomous recursive GOD LOOP execution, provider-backed engineering work, benchmark superiority, or production identity security. Those remain separate, intentionally unclaimed capabilities.
+
+## Final release repair wave — 2026-11-24
+
+The release audit independently confirmed two blockers and repaired them in one bounded iteration with disjoint scopes:
+
+| Specialist | Scope | Confirmed defect | Repair evidence |
+| --- | --- | --- | --- |
+| `code_reviewer` / Halley (`01a20ec6-5a3c-7c21-a2eb-08db5392a29c`) | Installer and portability tests | Rollback left profiles introduced by `update` installed and retained the newer manifest | Snapshot state is restored, newly introduced files are removed, and `npm run test:portability` passes **4/4** |
+| `security_engineer` / Banach (`01a20ec6-591f-7082-95da-afc1a662959d`) | Provider/API boundary and provider tests | Enabled Paperclip accepted missing tenant bindings and could expose unfiltered organizations | Missing/mismatched bindings fail closed before upstream calls; discovery is filtered; provider/security suites pass **15/15** |
+
+The audit also found no credential-shaped secrets in reachable history, no tracked secret-like files, and no release-blocking licensing defect. The final branch remains local-first: autonomous execution is disabled, Paperclip is optional and disabled by default, and production identity security is not claimed.
