@@ -56,6 +56,9 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     if (url.pathname === '/api/v1/tools' && request.method === 'GET') return jsonResponse(response, 200, { tools: (await import('./tools.mjs')).listTools() });
     if (url.pathname === '/api/v1/scenarios' && request.method === 'GET') return jsonResponse(response, 200, { scenarios: SCENARIOS });
     if (url.pathname === '/api/v1/providers' && request.method === 'GET') return jsonResponse(response, 200, { providers: providers.list() });
+    if (url.pathname === '/api/v1/providers/paperclip/health' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('health', () => providers.get('paperclip').health(), session));
+    if (url.pathname === '/api/v1/providers/paperclip/companies' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverOrganizations', () => providers.get('paperclip').discoverOrganizations(), session));
+    if (parts[2] === 'providers' && parts[3] === 'paperclip' && parts[4] === 'companies' && parts[5] && parts[6] === 'agents' && request.method === 'GET') return jsonResponse(response, 200, await providerRead('discoverAgents', () => providers.get('paperclip').discoverAgents(parts[5]), session));
     if (url.pathname === '/api/v1/runtime/kill-switch') {
       if (request.method === 'GET') return jsonResponse(response, 200, { active: killSwitch });
       if (request.method === 'POST') { killSwitch = Boolean(body.active); run(db, 'UPDATE workspaces SET kill_switch = ? WHERE id = ?', [killSwitch ? 1 : 0, session.workspaceId]); audit(db, { workspaceId: session.workspaceId, actorId: session.actorId, correlationId: id('corr'), eventType: killSwitch ? 'KILL_SWITCH_ENABLED' : 'KILL_SWITCH_DISABLED', entityType: 'workspace', entityId: session.workspaceId, payload: { active: killSwitch } }); return jsonResponse(response, 200, { active: killSwitch }); }
@@ -104,6 +107,17 @@ export function createApp({ root = path.resolve(path.dirname(fileURLToPath(impor
     workflows.approveRun(created.id, session.workspaceId, session.actorId, 'APPROVED', 'Trusted offline demonstration policy approval; not independent human authorization', { trustedDemo: true });
     const started = workflows.start(created.id, session.workspaceId, session.actorId);
     return jsonResponse(response, 202, { scenario_id: scenario.id, run: started, expected_mode: 'deterministic-local', approval_mode: 'demo', human_authorization: false });
+  }
+
+  async function providerRead(operation, callback, session) {
+    try {
+      const value = await callback();
+      audit(db, { workspaceId: session.workspaceId, actorId: session.actorId, correlationId: id('corr'), eventType: 'PROVIDER_READ', entityType: 'provider', entityId: 'paperclip', payload: { operation, status: 'success' } });
+      return value;
+    } catch (error) {
+      audit(db, { workspaceId: session.workspaceId, actorId: session.actorId, correlationId: id('corr'), eventType: 'PROVIDER_READ', entityType: 'provider', entityId: 'paperclip', payload: { operation, status: 'failed', error_code: error.code || 'provider_error' } });
+      throw error;
+    }
   }
 
   return {
