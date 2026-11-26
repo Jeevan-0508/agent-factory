@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const port = Number(process.env.PORT || 4173);
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.toml': 'text/plain; charset=utf-8' };
-const publicFiles = new Set(['/dashboard/index.html', '/dashboard/app.js', '/dashboard/experiences.js', '/dashboard/styles.css', '/catalog/roles.json']);
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.toml': 'text/plain; charset=utf-8', '.webp': 'image/webp' };
+const publicFiles = new Set(['/dashboard/index.html', '/dashboard/app.js', '/dashboard/experiences.js', '/dashboard/styles.css', '/catalog/roles.json', '/dashboard/divine-council/divine-council.js', '/dashboard/divine-council/assets/council-clean.webp']);
 
 function safePath(requestUrl) {
   let pathname;

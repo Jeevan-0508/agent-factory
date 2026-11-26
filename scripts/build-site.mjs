@@ -11,6 +11,7 @@ fs.mkdirSync(path.join(output, 'catalog'), { recursive: true });
 for (const file of ['index.html', 'app.js', 'experiences.js', 'styles.css']) {
   fs.copyFileSync(path.join(root, 'dashboard', file), path.join(output, file));
 }
+fs.cpSync(path.join(root, 'dashboard', 'divine-council'), path.join(output, 'divine-council'), { recursive: true });
 fs.copyFileSync(path.join(root, 'catalog', 'roles.json'), path.join(output, 'catalog', 'roles.json'));
 
-console.log(JSON.stringify({ ok: true, output, files: 5 }));
+console.log(JSON.stringify({ ok: true, output, files: 6 }));

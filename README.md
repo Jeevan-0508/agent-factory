@@ -13,7 +13,7 @@ AGENT//FACTORY is an evidence-constrained catalog and local-first orchestration 
 
 ## The public dashboard
 
-The live GitHub Pages dashboard is a static showcase. It includes the complete eight-experience explorer, search, role profiles, Prompt Studio, workflow design/export, evaluation evidence, Agent Galaxy, Mythology Atlas, and governance documentation. It does not execute agents, call providers, expose SQLite, or display private runtime telemetry.
+The live GitHub Pages dashboard is a static showcase. It includes the complete eight-experience explorer, search, role profiles, Prompt Studio, workflow design/export, evaluation evidence, Agent Galaxy, Mythology Atlas, governance documentation, and an optional [Council of Entities cinematic opening](docs/divine-council.md). It does not execute agents, call providers, expose SQLite, or display private runtime telemetry.
 
 ## Eight universes
 
@@ -64,6 +64,7 @@ Lifecycle: `DRAFT → VALIDATED → AWAITING_APPROVAL → APPROVED → RUNNING �
 
 - 100 catalog roles with stable IDs, mythic aliases, families, prompts, capabilities, deliverables, boundaries, and runtime metadata.
 - Eight genuinely different presentation universes over one shared catalog and persisted browser state.
+- Optional Council of Entities opening with procedural WebGL geometry, supplied clean ensemble artwork, fictional archetype signals, reduced-motion support, mobile layout, and a non-WebGL fallback.
 - Prompt Studio with copyable reusable prompts and role constraints.
 - Workflow designer with explicit roles, outputs, gates, feasibility, JSON copy, and export.
 - Agent Galaxy edges derived from shared catalog capabilities or explicit workflow adjacency; decorative connections are not presented as evidence.
@@ -110,6 +111,7 @@ For the local runtime, run `npm run start:local` and open `http://127.0.0.1:8787
 - [OLYMPUS builder](docs/olympus.md) · [Engineering Council](docs/engineering-council.md) · [Bounded GOD LOOP](docs/god-loop.md)
 - [Completion matrix](docs/completion-matrix.md) · [Installation](docs/installation.md) · [Provider adapters](docs/provider-adapters.md)
 - [Execution proof](docs/execution-proof.md)
+- [Council of Entities opening](docs/divine-council.md)
 - [V5 integration assessment](docs/v5-integration-assessment.md) · [V5 architecture decision](docs/v5-architecture-decision.md) · [V5 threat model](docs/v5-threat-model.md)
 - [Visual comparison](docs/visual-comparison-v4.md) · [Execution adapter investigation](docs/v5-execution-adapter.md)
 
