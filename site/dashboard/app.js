@@ -11,10 +11,14 @@ const CATALOG_URL = APP_MODULE_URL.pathname.endsWith('/dashboard/app.js')
   ? new URL('../catalog/roles.json', APP_MODULE_URL).href
   : new URL('./catalog/roles.json', APP_MODULE_URL).href;
 const COUNCIL_AGENT_IDS = ['solution_architect', 'backend_engineer', 'frontend_engineer', 'security_engineer', 'risk_manager', 'ai_governance_manager', 'qa_test_engineer', 'performance_engineer', 'documentation_writer', 'release_manager'];
+let divineCouncilApi = null;
+const viewAliases = { 'council-of-entities': 'divine-council' };
+const initialRequestedView = location.hash.slice(1) || 'overview';
+const initialView = viewAliases[initialRequestedView] || initialRequestedView;
 
 const state = {
   data: null,
-  view: location.hash.slice(1) || 'overview',
+  view: initialView,
   search: '',
   family: '',
   runtime: '',
@@ -56,7 +60,7 @@ const state = {
 };
 
 const viewLabels = {
-  overview: 'Overview', agents: 'Agent explorer', olympus: 'OLYMPUS builder', council: 'Engineering Council', 'god-loop': 'GOD LOOP console', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', execution: 'Execution console', evaluations: 'Evaluation lab', governance: 'Governance'
+  overview: 'Overview', 'divine-council': 'Council of Entities', agents: 'Agent explorer', olympus: 'OLYMPUS builder', council: 'Engineering Council', 'god-loop': 'GOD LOOP console', 'agent-detail': 'Agent profile', prompts: 'Prompt Studio', workflows: 'Workflow designer', execution: 'Execution console', evaluations: 'Evaluation lab', governance: 'Governance'
 };
 const validViews = new Set(Object.keys(viewLabels));
 if (!validViews.has(state.view)) state.view = 'overview';
@@ -157,7 +161,27 @@ function restoreFocus(selector, value = '') {
   if (typeof node.setSelectionRange === 'function' && value) node.setSelectionRange(value.length, value.length);
 }
 
-function setView(view, replace = false) {
+async function openDivineCouncil() {
+  try {
+    const module = await import('./divine-council/divine-council.js');
+    divineCouncilApi = module.mountDivineCouncil({ catalog: state.data, onEnterFactory: () => setView('overview', true) });
+  } catch (error) {
+    state.view = 'overview';
+    render();
+    showToast('The Council of Entities could not load. The dashboard remains available.');
+    console.warn('Council of Entities unavailable', error);
+  }
+}
+
+async function setView(view, replace = false) {
+  if (view === 'divine-council') {
+    state.view = view;
+    if (replace) history.replaceState({}, '', `#${view}`); else location.hash = view;
+    updateNav();
+    setSidebarOpen(false);
+    await openDivineCouncil();
+    return;
+  }
   state.view = view;
   state.agentId = null;
   if (replace) history.replaceState({}, '', `#${view}`); else location.hash = view;
@@ -799,11 +823,11 @@ document.querySelector('#sidebar-toggle').addEventListener('click', () => { cons
 document.querySelector('#theme-toggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; applyTheme(); });
 document.querySelector('#global-search').addEventListener('input', (event) => { const value = event.target.value; state.search = value; if (state.view !== 'agents') state.view = 'agents'; location.hash = 'agents'; render(); restoreFocus('#global-search', value); });
 document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('#global-search').focus(); } if (event.key === 'Escape' && sidebar.classList.contains('is-open')) { setSidebarOpen(false); document.querySelector('#mobile-menu')?.focus(); } });
-window.addEventListener('hashchange', () => { const requested = location.hash.slice(1) || 'overview'; const next = validViews.has(requested) ? requested : 'overview'; state.view = next; if (requested !== next) history.replaceState({}, '', '#overview'); render(); });
+window.addEventListener('hashchange', () => { const requested = location.hash.slice(1) || 'overview'; const next = viewAliases[requested] || requested; state.view = validViews.has(next) ? next : 'overview'; if (!validViews.has(next)) history.replaceState({}, '', '#overview'); if (state.view === 'divine-council') openDivineCouncil(); else render(); });
 
 initializeExperiencePicker();
 applyTheme();
 applyExperience();
 setSidebarOpen(false);
 window.matchMedia('(max-width: 780px)').addEventListener?.('change', () => setSidebarOpen(false));
-fetch(CATALOG_URL, { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); state.graph = buildCapabilityGraph(state.data); render(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });
+fetch(CATALOG_URL, { cache: 'no-store' }).then((response) => { if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`); return response.json(); }).then((data) => { state.data = normalizeCatalog(data); state.graph = buildCapabilityGraph(state.data); render(); const firstVisit = !location.hash && !localStorage.getItem('agent-factory-divine-council-seen'); if (state.view === 'divine-council' || firstVisit) openDivineCouncil(); }).catch((error) => { app.replaceChildren(el('div', { className: 'error-state' }, [el('h1', { text: 'Command center unavailable' }), el('p', { text: error.message }), button('Retry', 'primary', () => location.reload())])); });
